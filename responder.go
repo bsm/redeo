@@ -19,8 +19,6 @@ const (
 var (
 	binCRLF = []byte("\r\n")
 	binOK   = []byte("+OK\r\n")
-	binZERO = []byte(":0\r\n")
-	binONE  = []byte(":1\r\n")
 	binNIL  = []byte("$-1\r\n")
 )
 
@@ -32,11 +30,6 @@ type Responder struct {
 // NewResponder creates a new responder instance
 func NewResponder() *Responder {
 	return &Responder{b: new(bytes.Buffer)}
-}
-
-// Write is a generic write implementation
-func (res Responder) Write(b []byte) (int, error) {
-	return res.b.Write(b)
 }
 
 // WriteBulkLen writes a bulk length
@@ -74,18 +67,6 @@ func (res Responder) WriteInt(n int) int {
 	return res.writeInline(binCOLON, strconv.Itoa(n))
 }
 
-// WriteZero writes an inline 0 integer
-func (res Responder) WriteZero() int {
-	n, _ := res.b.Write(binZERO)
-	return n
-}
-
-// WriteOne writes an inline 0 integer
-func (res Responder) WriteOne() int {
-	n, _ := res.b.Write(binONE)
-	return n
-}
-
 // WriteErrorString writes an error string
 func (res Responder) WriteErrorString(s string) int {
 	return res.writeInline(binMINUS, s)
@@ -109,6 +90,11 @@ func (res Responder) String() string {
 // Len returns the buffered length
 func (res Responder) Len() int {
 	return res.b.Len()
+}
+
+// Truncate truncates the buffer
+func (res Responder) Truncate(n int) {
+	res.b.Truncate(n)
 }
 
 // WriteTo writes the buffer to a writer

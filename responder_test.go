@@ -69,21 +69,21 @@ var _ = Describe("Responder", func() {
 
 })
 
-func BenchmarkResponder_OK(b *testing.B) {
+func BenchmarkResponder_WriteOK(b *testing.B) {
 	r := NewResponder()
 	for i := 0; i < b.N; i++ {
 		r.WriteOK()
 	}
 }
 
-func BenchmarkResponder_Nil(b *testing.B) {
+func BenchmarkResponder_WriteNil(b *testing.B) {
 	r := NewResponder()
 	for i := 0; i < b.N; i++ {
 		r.WriteNil()
 	}
 }
 
-func BenchmarkResponder_InlineString(b *testing.B) {
+func BenchmarkResponder_WriteInlineString(b *testing.B) {
 	r := NewResponder()
 	s := strings.Repeat("x", 64)
 	b.ResetTimer()
@@ -92,16 +92,17 @@ func BenchmarkResponder_InlineString(b *testing.B) {
 	}
 }
 
-func BenchmarkResponder_String(b *testing.B) {
+func BenchmarkResponder_WriteString(b *testing.B) {
 	r := NewResponder()
 	s := strings.Repeat("x", 64)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		r.WriteString(s)
+		r.Truncate(0)
 	}
 }
 
-func BenchmarkResponder_Int(b *testing.B) {
+func BenchmarkResponder_WriteInt(b *testing.B) {
 	r := NewResponder()
 	for i := 0; i < b.N; i++ {
 		r.WriteInt(98765)

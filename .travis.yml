@@ -1,5 +1,5 @@
 language: go
-install: go get
+script: make bench
 go:
   - 1.1
   - 1.2
