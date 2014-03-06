@@ -1,4 +1,4 @@
-# Redeo
+# Redeo [![Build Status](https://travis-ci.org/bsm/redeo.png?branch=master)](https://travis-ci.org/bsm/redeo)
 
 High-performance framework for building redis-protocol compatible TCP
 servers/services. Optimised for speed!
