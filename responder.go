@@ -19,6 +19,8 @@ const (
 var (
 	binCRLF = []byte("\r\n")
 	binOK   = []byte("+OK\r\n")
+	binZERO = []byte(":0\r\n")
+	binONE  = []byte(":1\r\n")
 	binNIL  = []byte("$-1\r\n")
 )
 
@@ -65,6 +67,18 @@ func (res Responder) WriteOK() int {
 // WriteInt writes an inline integer
 func (res Responder) WriteInt(n int) int {
 	return res.writeInline(binCOLON, strconv.Itoa(n))
+}
+
+// WriteZero writes a 0 integer
+func (res Responder) WriteZero() int {
+	n, _ := res.b.Write(binZERO)
+	return n
+}
+
+// WriteOne writes a 1 integer
+func (res Responder) WriteOne() int {
+	n, _ := res.b.Write(binONE)
+	return n
 }
 
 // WriteErrorString writes an error string

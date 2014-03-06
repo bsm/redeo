@@ -28,9 +28,10 @@ var _ = Describe("Responder", func() {
 	})
 
 	It("should write ints", func() {
-		n := subject.WriteInt(345)
-		Expect(n).To(Equal(6))
-		Expect(subject.String()).To(Equal(":345\r\n"))
+		Expect(subject.WriteInt(345)).To(Equal(6))
+		Expect(subject.WriteZero()).To(Equal(4))
+		Expect(subject.WriteOne()).To(Equal(4))
+		Expect(subject.String()).To(Equal(":345\r\n:0\r\n:1\r\n"))
 	})
 
 	It("should write error strings", func() {
