@@ -8,10 +8,10 @@ import (
 func main() {
 	srv := redeo.NewServer(nil)
 	srv.HandleFunc("ping", func(out *redeo.Responder, _ *redeo.Request) error {
-		_, err := out.WriteInlineString("PONG")
-		return err
+		out.WriteInlineString("PONG")
+		return nil
 	})
 
-	log.Printf("Listening on %s://%s", srv.Proto(), srv.Addr())
+	log.Printf("Listening on tcp://%s", srv.Addr())
 	log.Fatal(srv.ListenAndServe())
 }

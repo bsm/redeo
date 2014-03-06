@@ -3,6 +3,7 @@ package redeo
 import (
 	"bufio"
 	"net"
+	"os"
 	"strings"
 	"sync"
 )
@@ -27,33 +28,49 @@ func NewServer(config *Config) *Server {
 	}
 }
 
-// Proto returns the server protocol
-func (srv *Server) Proto() string {
-	return srv.config.Proto
-}
-
-// Addr returns the server address
+// Addr returns the server TCP address
 func (srv *Server) Addr() string {
 	return srv.config.Addr
 }
 
+// Addr returns the server Socket address
+func (srv *Server) Socket() string {
+	return srv.config.Socket
+}
+
 // ListenAndServe starts the server
 func (srv *Server) ListenAndServe() error {
-	lis, err := net.Listen(srv.config.Proto, srv.config.Addr)
-	if err != nil {
-		return err
+	errs := make(chan error)
+
+	if srv.Addr() != "" {
+		lis, err := net.Listen("tcp", srv.Addr())
+		if err != nil {
+			return err
+		}
+		go srv.Serve(errs, lis)
 	}
-	return srv.Serve(lis)
+
+	if srv.Socket() != "" {
+		lis, err := srv.listenUnix()
+		if err != nil {
+			return err
+		}
+		go srv.Serve(errs, lis)
+	}
+
+	return <-errs
 }
 
 // Serve accepts incoming connections on the Listener lis, creating a
 // new service goroutine for each.
-func (srv *Server) Serve(lis net.Listener) error {
+func (srv *Server) Serve(errs chan error, lis net.Listener) {
 	defer lis.Close()
+
 	for {
 		conn, err := lis.Accept()
 		if err != nil {
-			return err
+			errs <- err
+			return
 		}
 		go srv.ServeClient(conn)
 	}
@@ -113,4 +130,14 @@ func (srv *Server) writeError(conn net.Conn, err error) {
 	res := NewResponder()
 	res.WriteError(err)
 	res.WriteTo(conn)
+}
+
+// listenUnix starts the unix listener on socket path
+func (srv *Server) listenUnix() (net.Listener, error) {
+	if stat, err := os.Stat(srv.Socket()); !os.IsNotExist(err) && !stat.IsDir() {
+		if err = os.RemoveAll(srv.Socket()); err != nil {
+			return nil, err
+		}
+	}
+	return net.Listen("unix", srv.Socket())
 }
