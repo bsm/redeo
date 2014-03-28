@@ -18,6 +18,7 @@ var _ = Describe("Request", func() {
 		{Request{Name: "ping"}, "PiNg\r\n", "inline ping"},
 		{Request{Name: "ping", Args: []string{}}, "*1\r\n$4\r\nPiNg\r\n", "bulk ping"},
 		{Request{Name: "get", Args: []string{"Xy"}}, "*2\r\n$3\r\nGET\r\n$2\r\nXy\r\n", "get"},
+		{Request{Name: "set", Args: []string{"k\r\ney", "va\r\nl"}}, "*3\r\n$3\r\nSET\r\n$5\r\nk\r\ney\r\n$5\r\nva\r\nl\r\n", "set"},
 	}
 
 	var failureCases = []struct {
