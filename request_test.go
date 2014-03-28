@@ -36,11 +36,16 @@ var _ = Describe("Request", func() {
 		{ErrInvalidRequest, "*2\n$3\nget\n$1\nx\n", "wrong line breaks"},
 	}
 
-	It("should parse successfully", func() {
+	It("should parse successfully, consuming the full message", func() {
 		for _, c := range successCases {
-			req, err := ParseRequest(bufio.NewReader(strings.NewReader(c.m)))
+			rd := bufio.NewReader(strings.NewReader(c.m))
+			req, err := ParseRequest(rd)
 			Expect(err).To(BeNil(), c.d)
 			Expect(req).To(BeEquivalentTo(&c.r), c.d)
+
+			more, err := rd.Peek(1)
+			Expect(more).To(HaveLen(0))
+			Expect(err).To(Equal(io.EOF))
 		}
 	})
 
