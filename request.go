@@ -10,10 +10,11 @@ import (
 
 // Request contains a command and arguments
 type Request struct {
-	Name string
-	Args []string
+	Name string      `json:"name"`
+	Args []string    `json:"args,omitempty"`
+	Ctx  interface{} `json:"ctx,omitempty"`
 
-	RemoteAddr net.Addr
+	RemoteAddr net.Addr `json:"remote_addr,omitempty"`
 }
 
 // ParseRequest parses a new request from a buffered connection
