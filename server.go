@@ -112,14 +112,14 @@ func (srv *Server) ServeClient(conn net.Conn) {
 			return
 		}
 		req.RemoteAddr = conn.RemoteAddr()
-		req.ctx = ctx
+		req.Ctx = ctx
 
 		res, err := srv.Apply(req)
 		if err != nil {
 			srv.writeError(conn, err)
 			return
 		}
-		ctx = req.ctx
+		ctx = req.Ctx
 
 		if _, err = res.WriteTo(conn); err != nil {
 			return
