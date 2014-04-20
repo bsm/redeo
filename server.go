@@ -103,7 +103,7 @@ func (srv *Server) Apply(req *Request) (*Responder, error) {
 // Serve starts a new session, using `conn` as a transport.
 func (srv *Server) ServeClient(conn net.Conn) {
 	defer conn.Close()
-
+	var ctx interface{}
 	rd := bufio.NewReader(conn)
 	for {
 		req, err := ParseRequest(rd)
@@ -112,12 +112,14 @@ func (srv *Server) ServeClient(conn net.Conn) {
 			return
 		}
 		req.RemoteAddr = conn.RemoteAddr()
+		req.Ctx = ctx
 
 		res, err := srv.Apply(req)
 		if err != nil {
 			srv.writeError(conn, err)
 			return
 		}
+		ctx = req.Ctx
 
 		if _, err = res.WriteTo(conn); err != nil {
 			return
