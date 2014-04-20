@@ -8,11 +8,11 @@ import (
 
 var _ = Describe("Server", func() {
 	var subject *Server
-	var pong = func(out *Responder, _ *Request) error {
+	var pong = func(out *Responder, _ *Request, _ interface{}) error {
 		out.WriteInlineString("PONG")
 		return nil
 	}
-	var echo = func(out *Responder, req *Request) error {
+	var echo = func(out *Responder, req *Request, _ interface{}) error {
 		if len(req.Args) != 1 {
 			return ErrWrongNumberOfArgs
 		}
@@ -36,14 +36,14 @@ var _ = Describe("Server", func() {
 
 	It("should apply requests", func() {
 		subject.HandleFunc("echo", echo)
-		res, err := subject.Apply(&Request{Name: "echo"})
+		res, err := subject.Apply(&Request{Name: "echo"}, struct{}{})
 		Expect(err).To(Equal(ErrWrongNumberOfArgs))
 
-		res, err = subject.Apply(&Request{Name: "echo", Args: []string{"SAY HI!"}})
+		res, err = subject.Apply(&Request{Name: "echo", Args: []string{"SAY HI!"}}, struct{}{})
 		Expect(err).To(BeNil())
 		Expect(res.String()).To(Equal("$7\r\nSAY HI!\r\n"))
 
-		res, err = subject.Apply(&Request{Name: "echo", Args: []string{strings.Repeat("x", 100000)}})
+		res, err = subject.Apply(&Request{Name: "echo", Args: []string{strings.Repeat("x", 100000)}}, struct{}{})
 		Expect(err).To(BeNil())
 		Expect(res.Len()).To(Equal(100011))
 		Expect(res.String()[:9]).To(Equal("$100000\r\n"))

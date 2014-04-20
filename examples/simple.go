@@ -1,13 +1,13 @@
 package main
 
 import (
-	"github.com/bsm/redeo"
+	"github.com/tsileo/redeo"
 	"log"
 )
 
 func main() {
 	srv := redeo.NewServer(nil)
-	srv.HandleFunc("ping", func(out *redeo.Responder, _ *redeo.Request) error {
+	srv.HandleFunc("ping", func(out *redeo.Responder, _ *redeo.Request, ctx interface{}) error {
 		out.WriteInlineString("PONG")
 		return nil
 	})

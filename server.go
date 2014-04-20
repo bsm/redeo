@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"log"
+	"fmt"
 )
 
 // Server configuration
@@ -90,22 +92,26 @@ func (srv *Server) HandleFunc(name string, callback HandlerFunc) {
 }
 
 // Apply applies a request
-func (srv *Server) Apply(req *Request) (*Responder, error) {
+func (srv *Server) Apply(req *Request, ctx interface{}) (*Responder, error) {
 	cmd, ok := srv.commands[req.Name]
 	if !ok {
 		return nil, ErrUnknownCommand
 	}
 	res := NewResponder()
-	err := cmd.ServeClient(res, req)
+	err := cmd.ServeClient(res, req, ctx)
 	return res, err
 }
 
 // Serve starts a new session, using `conn` as a transport.
 func (srv *Server) ServeClient(conn net.Conn) {
 	defer conn.Close()
-
+	log.Println(fmt.Sprintf("%+v", conn))
+	log.Println("New ServeClient")
+	var ctx interface{}
 	rd := bufio.NewReader(conn)
 	for {
+		log.Println("Waiting for req")
+		log.Println(fmt.Sprintf("%+v", ctx))	
 		req, err := ParseRequest(rd)
 		if err != nil {
 			srv.writeError(conn, err)
@@ -113,7 +119,7 @@ func (srv *Server) ServeClient(conn net.Conn) {
 		}
 		req.RemoteAddr = conn.RemoteAddr()
 
-		res, err := srv.Apply(req)
+		res, err := srv.Apply(req, ctx)
 		if err != nil {
 			srv.writeError(conn, err)
 			return
