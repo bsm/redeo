@@ -6,8 +6,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"log"
-	"fmt"
 )
 
 // Server configuration
@@ -105,13 +103,9 @@ func (srv *Server) Apply(req *Request, ctx interface{}) (*Responder, error) {
 // Serve starts a new session, using `conn` as a transport.
 func (srv *Server) ServeClient(conn net.Conn) {
 	defer conn.Close()
-	log.Println(fmt.Sprintf("%+v", conn))
-	log.Println("New ServeClient")
 	var ctx interface{}
 	rd := bufio.NewReader(conn)
 	for {
-		log.Println("Waiting for req")
-		log.Println(fmt.Sprintf("%+v", ctx))	
 		req, err := ParseRequest(rd)
 		if err != nil {
 			srv.writeError(conn, err)

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/tsileo/redeo"
+	"github.com/bsm/redeo"
 	"log"
 )
 
