@@ -15,7 +15,7 @@ import (
 
 func main() {
   srv := redeo.NewServer(&redeo.Config{Proto: "tcp", Addr: "localhost:9736"})
-  srv.HandleFunc("ping", func(out *redeo.Responder, _ *redeo.Request, ctx interface{}) error {
+  srv.HandleFunc("ping", func(out *redeo.Responder, _ *redeo.Request) error {
     out.InlineString("PONG")
     return nil
   })
