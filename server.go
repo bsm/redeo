@@ -90,13 +90,13 @@ func (srv *Server) HandleFunc(name string, callback HandlerFunc) {
 }
 
 // Apply applies a request
-func (srv *Server) Apply(req *Request, ctx interface{}) (*Responder, error) {
+func (srv *Server) Apply(req *Request) (*Responder, error) {
 	cmd, ok := srv.commands[req.Name]
 	if !ok {
 		return nil, ErrUnknownCommand
 	}
 	res := NewResponder()
-	err := cmd.ServeClient(res, req, ctx)
+	err := cmd.ServeClient(res, req)
 	return res, err
 }
 
@@ -112,12 +112,14 @@ func (srv *Server) ServeClient(conn net.Conn) {
 			return
 		}
 		req.RemoteAddr = conn.RemoteAddr()
+		req.ctx = ctx
 
-		res, err := srv.Apply(req, ctx)
+		res, err := srv.Apply(req)
 		if err != nil {
 			srv.writeError(conn, err)
 			return
 		}
+		ctx = req.ctx
 
 		if _, err = res.WriteTo(conn); err != nil {
 			return
