@@ -49,11 +49,17 @@ var _ = Describe("Request", func() {
 		}
 	})
 
+	It("should have client information", func() {
+		cln := &Client{}
+		req := &Request{client: cln}
+		Expect(req.Client()).To(Equal(cln))
+	})
+
 	It("should parse chunks", func() {
 		val := strings.Repeat("x", 1024)
 		bio := bufio.NewReader(mockFD{s: "*3\r\n$3\r\nset\r\n$1\r\nx\r\n$1024\r\n" + val + "\r\n"})
 		req, err := ParseRequest(bio)
-		Expect(err).To(BeNil())
+		Expect(err).NotTo(HaveOccurred())
 		Expect(req).NotTo(BeNil())
 		Expect(req.Args).To(HaveLen(2))
 		Expect(req.Args[1]).To(HaveLen(1024))

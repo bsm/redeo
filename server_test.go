@@ -40,11 +40,11 @@ var _ = Describe("Server", func() {
 		Expect(err).To(Equal(ErrWrongNumberOfArgs))
 
 		res, err = subject.Apply(&Request{Name: "echo", Args: []string{"SAY HI!"}})
-		Expect(err).To(BeNil())
+		Expect(err).NotTo(HaveOccurred())
 		Expect(res.String()).To(Equal("$7\r\nSAY HI!\r\n"))
 
 		res, err = subject.Apply(&Request{Name: "echo", Args: []string{strings.Repeat("x", 100000)}})
-		Expect(err).To(BeNil())
+		Expect(err).NotTo(HaveOccurred())
 		Expect(res.Len()).To(Equal(100011))
 		Expect(res.String()[:9]).To(Equal("$100000\r\n"))
 	})

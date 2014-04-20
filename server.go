@@ -105,13 +105,14 @@ func (srv *Server) ServeClient(conn net.Conn) {
 	defer conn.Close()
 
 	rd := bufio.NewReader(conn)
+	client := &Client{RemoteAddr: conn.RemoteAddr()}
 	for {
 		req, err := ParseRequest(rd)
 		if err != nil {
 			srv.writeError(conn, err)
 			return
 		}
-		req.RemoteAddr = conn.RemoteAddr()
+		req.client = client
 
 		res, err := srv.Apply(req)
 		if err != nil {

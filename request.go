@@ -8,13 +8,24 @@ import (
 	"strings"
 )
 
-// Request contains a command and arguments
+// A client is the origin of a request
+type Client struct {
+	RemoteAddr net.Addr    `json:"remote_addr,omitempty"`
+	Ctx        interface{} `json:"ctx,omitempty"`
+}
+
+// Request contains a command, arguments, and client information
 type Request struct {
 	Name string      `json:"name"`
 	Args []string    `json:"args,omitempty"`
 	Ctx  interface{} `json:"ctx,omitempty"`
 
-	RemoteAddr net.Addr `json:"remote_addr,omitempty"`
+	client *Client
+}
+
+// Client returns the client
+func (r *Request) Client() *Client {
+	return r.client
 }
 
 // ParseRequest parses a new request from a buffered connection
