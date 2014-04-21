@@ -121,6 +121,11 @@ func (res Responder) WriteTo(w io.Writer) (int64, error) {
 	return res.b.WriteTo(w)
 }
 
+// Buffer returns the internal *bytes.Buffer
+func (res Responder) Buffer() *bytes.Buffer {
+	return res.b
+}
+
 func (res Responder) writeInline(prefix byte, s string) int {
 	res.b.WriteByte(prefix) // Never returns an error
 	n, _ := res.b.WriteString(s)
