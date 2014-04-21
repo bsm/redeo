@@ -1,6 +1,7 @@
 package redeo
 
 import (
+	"bytes"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"io"
@@ -66,6 +67,25 @@ var _ = Describe("Responder", func() {
 		n := subject.WriteBulkLen(4)
 		Expect(n).To(Equal(4))
 		Expect(subject.String()).To(Equal("*4\r\n"))
+	})
+
+	It("should implement io.Writer", func() {
+		var _ io.Writer = subject
+		n, err := subject.Write(binOK)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(n).To(Equal(5))
+		Expect(subject.String()).To(Equal("+OK\r\n"))
+	})
+
+	It("should implement io.WriterTo", func() {
+		var _ io.WriterTo = subject
+		var b bytes.Buffer
+
+		Expect(subject.WriteOK()).To(Equal(5))
+		n, err := subject.WriteTo(&b)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(n).To(Equal(int64(5)))
+		Expect(b.String()).To(Equal("+OK\r\n"))
 	})
 
 })

@@ -111,7 +111,12 @@ func (res Responder) Truncate(n int) {
 	res.b.Truncate(n)
 }
 
-// WriteTo writes the buffer to a writer
+// Write writes raw data to the buffer (implements io.Writer interface)
+func (res Responder) Write(p []byte) (int, error) {
+	return res.b.Write(p)
+}
+
+// WriteTo writes the buffer to a writer (implements io.WriterTo interface)
 func (res Responder) WriteTo(w io.Writer) (int64, error) {
 	return res.b.WriteTo(w)
 }
