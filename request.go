@@ -28,6 +28,11 @@ func (r *Request) Client() *Client {
 	return r.client
 }
 
+// SetClient sets the client
+func (r *Request) SetClient(client *Client) {
+	r.client = client
+}
+
 // ParseRequest parses a new request from a buffered connection
 func ParseRequest(rd *bufio.Reader) (req *Request, err error) {
 	var line []byte
