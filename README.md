@@ -14,13 +14,13 @@ import (
 )
 
 func main() {
-  srv := redeo.NewServer(&redeo.Config{Proto: "tcp", Addr: "localhost:9736"})
+  srv := redeo.NewServer(&redeo.Config{Addr: "localhost:9736"})
   srv.HandleFunc("ping", func(out *redeo.Responder, _ *redeo.Request) error {
-    out.InlineString("PONG")
+    out.WriteInlineString("PONG")
     return nil
   })
 
-  log.Printf("Listening on %s://%s", srv.Proto(), srv.Addr())
+  log.Printf("Listening on tcp://%s", srv.Addr())
   log.Fatal(srv.ListenAndServe())
 }
 ```
