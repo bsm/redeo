@@ -11,8 +11,9 @@ import (
 // Server configuration
 type Server struct {
 	config   *Config
+	info     *Info
 	commands map[string]Handler
-	mutex    *sync.Mutex
+	mutex    sync.Mutex
 }
 
 // NewServer creates a new server instance
@@ -23,8 +24,8 @@ func NewServer(config *Config) *Server {
 
 	return &Server{
 		config:   config,
+		info:     NewInfo(config),
 		commands: make(map[string]Handler),
-		mutex:    new(sync.Mutex),
 	}
 }
 
@@ -36,6 +37,11 @@ func (srv *Server) Addr() string {
 // Addr returns the server Socket address
 func (srv *Server) Socket() string {
 	return srv.config.Socket
+}
+
+// Info returns the server info
+func (srv *Server) Info() *Info {
+	return srv.info
 }
 
 // ListenAndServe starts the server
@@ -95,6 +101,7 @@ func (srv *Server) Apply(req *Request) (*Responder, error) {
 	if !ok {
 		return nil, ErrUnknownCommand
 	}
+	srv.info.Called()
 	res := NewResponder()
 	err := cmd.ServeClient(res, req)
 	return res, err
@@ -102,6 +109,8 @@ func (srv *Server) Apply(req *Request) (*Responder, error) {
 
 // Serve starts a new session, using `conn` as a transport.
 func (srv *Server) ServeClient(conn net.Conn) {
+	srv.info.Connected()
+	defer srv.info.Disconnected()
 	defer conn.Close()
 
 	rd := bufio.NewReader(conn)
