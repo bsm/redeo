@@ -102,7 +102,9 @@ func (srv *Server) Apply(req *Request) (*Responder, error) {
 		return nil, ErrUnknownCommand
 	}
 
-	srv.info.Called(req.client, req.Name)
+	if req.client != nil {
+		srv.info.Called(req.client, req.Name)
+	}
 	res := NewResponder()
 	err := cmd.ServeClient(res, req)
 	return res, err
