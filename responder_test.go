@@ -2,11 +2,12 @@ package redeo
 
 import (
 	"bytes"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
 	"io"
 	"strings"
 	"testing"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Responder", func() {
@@ -24,6 +25,12 @@ var _ = Describe("Responder", func() {
 
 	It("should write strings", func() {
 		n := subject.WriteString("HELLO")
+		Expect(n).To(Equal(11))
+		Expect(subject.String()).To(Equal("$5\r\nHELLO\r\n"))
+	})
+
+	It("should write plain bytes", func() {
+		n := subject.WriteBytes([]byte("HELLO"))
 		Expect(n).To(Equal(11))
 		Expect(subject.String()).To(Equal("$5\r\nHELLO\r\n"))
 	})

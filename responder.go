@@ -47,6 +47,14 @@ func (res Responder) WriteString(s string) int {
 	return n + m + 2
 }
 
+// WriteBytes writes a bulk string
+func (res Responder) WriteBytes(b []byte) int {
+	n := res.writeInline(binDOLLAR, strconv.Itoa(len(b)))
+	m, _ := res.b.Write(b)
+	res.b.Write(binCRLF)
+	return n + m + 2
+}
+
 // WriteString writes an inline string
 func (res Responder) WriteInlineString(s string) int {
 	return res.writeInline(binPLUS, s)
