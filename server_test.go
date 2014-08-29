@@ -1,9 +1,10 @@
 package redeo
 
 import (
+	"strings"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"strings"
 )
 
 var _ = Describe("Server", func() {
@@ -36,14 +37,14 @@ var _ = Describe("Server", func() {
 
 	It("should apply requests", func() {
 		subject.HandleFunc("echo", echo)
-		res, err := subject.Apply(&Request{Name: "echo"})
+		res, err := subject.Apply(&Request{Name: "echo", client: NewClient("1.2.3.4:10001")})
 		Expect(err).To(Equal(ErrWrongNumberOfArgs))
 
-		res, err = subject.Apply(&Request{Name: "echo", Args: []string{"SAY HI!"}})
+		res, err = subject.Apply(&Request{Name: "echo", Args: []string{"SAY HI!"}, client: NewClient("1.2.3.4:10001")})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(res.String()).To(Equal("$7\r\nSAY HI!\r\n"))
 
-		res, err = subject.Apply(&Request{Name: "echo", Args: []string{strings.Repeat("x", 100000)}})
+		res, err = subject.Apply(&Request{Name: "echo", Args: []string{strings.Repeat("x", 100000)}, client: NewClient("1.2.3.4:10001")})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(res.Len()).To(Equal(100011))
 		Expect(res.String()[:9]).To(Equal("$100000\r\n"))

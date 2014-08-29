@@ -3,16 +3,9 @@ package redeo
 import (
 	"bufio"
 	"io"
-	"net"
 	"strconv"
 	"strings"
 )
-
-// A client is the origin of a request
-type Client struct {
-	RemoteAddr net.Addr    `json:"remote_addr,omitempty"`
-	Ctx        interface{} `json:"ctx,omitempty"`
-}
 
 // Request contains a command, arguments, and client information
 type Request struct {

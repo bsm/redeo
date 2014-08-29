@@ -11,7 +11,7 @@ import (
 // Server configuration
 type Server struct {
 	config   *Config
-	info     *Info
+	info     *ServerInfo
 	commands map[string]Handler
 	mutex    sync.Mutex
 }
@@ -24,7 +24,7 @@ func NewServer(config *Config) *Server {
 
 	return &Server{
 		config:   config,
-		info:     NewInfo(config),
+		info:     NewServerInfo(config),
 		commands: make(map[string]Handler),
 	}
 }
@@ -40,7 +40,7 @@ func (srv *Server) Socket() string {
 }
 
 // Info returns the server info
-func (srv *Server) Info() *Info {
+func (srv *Server) Info() *ServerInfo {
 	return srv.info
 }
 
@@ -101,7 +101,8 @@ func (srv *Server) Apply(req *Request) (*Responder, error) {
 	if !ok {
 		return nil, ErrUnknownCommand
 	}
-	srv.info.Called()
+
+	srv.info.Called(req.client, req.Name)
 	res := NewResponder()
 	err := cmd.ServeClient(res, req)
 	return res, err
@@ -109,12 +110,13 @@ func (srv *Server) Apply(req *Request) (*Responder, error) {
 
 // Serve starts a new session, using `conn` as a transport.
 func (srv *Server) ServeClient(conn net.Conn) {
-	srv.info.Connected()
-	defer srv.info.Disconnected()
 	defer conn.Close()
 
 	rd := bufio.NewReader(conn)
-	client := &Client{RemoteAddr: conn.RemoteAddr()}
+	client := NewClient(conn.RemoteAddr().String())
+	srv.info.Connected(client)
+	defer srv.info.Disconnected(client)
+
 	for {
 		req, err := ParseRequest(rd)
 		if err != nil {

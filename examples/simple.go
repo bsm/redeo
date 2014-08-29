@@ -16,6 +16,19 @@ func main() {
 		out.WriteString(srv.Info().String())
 		return nil
 	})
+	srv.HandleFunc("client", func(out *redeo.Responder, req *redeo.Request) error {
+		if len(req.Args) != 1 {
+			return redeo.ErrWrongNumberOfArgs
+		}
+
+		switch req.Args[0] {
+		case "list":
+			out.WriteString(srv.Info().ClientsString())
+		default:
+			return redeo.ErrUnknownCommand
+		}
+		return nil
+	})
 
 	log.Printf("Listening on tcp://%s", srv.Addr())
 	log.Fatal(srv.ListenAndServe())
