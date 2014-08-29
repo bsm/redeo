@@ -37,14 +37,16 @@ var _ = Describe("Server", func() {
 
 	It("should apply requests", func() {
 		subject.HandleFunc("echo", echo)
-		res, err := subject.Apply(&Request{Name: "echo", client: NewClient("1.2.3.4:10001")})
+		client := NewClient("1.2.3.4:10001")
+		res, err := subject.Apply(&Request{Name: "echo", client: client})
 		Expect(err).To(Equal(ErrWrongNumberOfArgs))
+		Expect(client.LastCommand()).To(Equal("echo"))
 
-		res, err = subject.Apply(&Request{Name: "echo", Args: []string{"SAY HI!"}, client: NewClient("1.2.3.4:10001")})
+		res, err = subject.Apply(&Request{Name: "echo", Args: []string{"SAY HI!"}})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(res.String()).To(Equal("$7\r\nSAY HI!\r\n"))
 
-		res, err = subject.Apply(&Request{Name: "echo", Args: []string{strings.Repeat("x", 100000)}, client: NewClient("1.2.3.4:10001")})
+		res, err = subject.Apply(&Request{Name: "echo", Args: []string{strings.Repeat("x", 100000)}})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(res.Len()).To(Equal(100011))
 		Expect(res.String()[:9]).To(Equal("$100000\r\n"))
