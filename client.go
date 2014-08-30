@@ -3,19 +3,9 @@ package redeo
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 )
-
-// A client is the origin of a request
-type Client struct {
-	baseInfo
-	ID         int         `json:"-"`
-	RemoteAddr string      `json:"remote_addr,omitempty"`
-	Ctx        interface{} `json:"ctx,omitempty"`
-
-	cmd   string
-	mutex sync.Mutex
-}
 
 type clientSlice []Client
 
@@ -23,16 +13,31 @@ func (p clientSlice) Len() int           { return len(p) }
 func (p clientSlice) Less(i, j int) bool { return p[i].ID < p[j].ID }
 func (p clientSlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
+var clientInc = uint64(0)
+
+// A client is the origin of a request
+type Client struct {
+	baseInfo
+	ID         uint64      `json:"id,omitempty"`
+	RemoteAddr string      `json:"remote_addr,omitempty"`
+	Ctx        interface{} `json:"ctx,omitempty"`
+
+	cmd   string
+	mutex sync.Mutex
+}
+
 // NewClient creates a new client info container
 func NewClient(addr string) *Client {
+
 	return &Client{
+		ID:         atomic.AddUint64(&clientInc, 1),
 		RemoteAddr: addr,
 		baseInfo:   baseInfo{StartTime: time.Now()},
 	}
 }
 
-// Called callback to set last user command
-func (i *Client) Called(cmd string) {
+// OnCommand callback to track user command
+func (i *Client) OnCommand(cmd string) {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
 

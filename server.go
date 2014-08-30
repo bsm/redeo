@@ -102,9 +102,7 @@ func (srv *Server) Apply(req *Request) (*Responder, error) {
 		return nil, ErrUnknownCommand
 	}
 
-	if req.client != nil {
-		srv.info.Called(req.client, req.Name)
-	}
+	srv.info.OnCommand(req.client, req.Name)
 	res := NewResponder()
 	err := cmd.ServeClient(res, req)
 	return res, err
@@ -116,8 +114,8 @@ func (srv *Server) ServeClient(conn net.Conn) {
 
 	rd := bufio.NewReader(conn)
 	client := NewClient(conn.RemoteAddr().String())
-	srv.info.Connected(client)
-	defer srv.info.Disconnected(client)
+	srv.info.OnConnect(client)
+	defer srv.info.OnDisconnect(client)
 
 	for {
 		req, err := ParseRequest(rd)

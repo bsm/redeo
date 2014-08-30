@@ -6,6 +6,7 @@ import (
 	"os"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -25,8 +26,8 @@ type ServerInfo struct {
 	ProcessID int    // process_id
 
 	clients     map[string]*Client
-	connections int64
-	processed   int64
+	connections uint64
+	processed   uint64
 
 	mutex sync.Mutex
 }
@@ -44,47 +45,40 @@ func NewServerInfo(config *Config) *ServerInfo {
 	}
 }
 
-// Connections returns the number of total connections since start
-func (i *ServerInfo) Connections() int64 {
+// OnConnect callback to register client connection
+func (i *ServerInfo) OnConnect(client *Client) {
+	atomic.AddUint64(&i.connections, 1)
+
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
 
-	return i.connections
-}
-
-// Processed returns the number of processed commands since start
-func (i *ServerInfo) Processed() int64 {
-	i.mutex.Lock()
-	defer i.mutex.Unlock()
-
-	return i.processed
-}
-
-// Connected callback to increment clients & connections
-func (i *ServerInfo) Connected(client *Client) {
-	i.mutex.Lock()
-	defer i.mutex.Unlock()
-
-	i.connections++
 	i.clients[client.RemoteAddr] = client
-	client.ID = len(i.clients)
 }
 
-// Disconnected callback to decerement client count
-func (i *ServerInfo) Disconnected(client *Client) {
+// OnDisconnect callback to de-register client
+func (i *ServerInfo) OnDisconnect(client *Client) {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
 
 	delete(i.clients, client.RemoteAddr)
 }
 
-// Called callback to increment processed command count
-func (i *ServerInfo) Called(client *Client, cmd string) {
-	i.mutex.Lock()
-	defer i.mutex.Unlock()
+// OnCommand callback to track processed command
+func (i *ServerInfo) OnCommand(client *Client, cmd string) {
+	atomic.AddUint64(&i.processed, 1)
+	if client != nil {
+		client.OnCommand(cmd)
+	}
+}
 
-	i.processed++
-	client.Called(cmd)
+// TotalConnections returns the number of total connections since start
+func (i *ServerInfo) TotalConnections() uint64 {
+	return atomic.LoadUint64(&i.connections)
+}
+
+// TotalProcessed returns the number of processed commands since start
+func (i *ServerInfo) TotalProcessed() uint64 {
+	return atomic.LoadUint64(&i.processed)
 }
 
 // Clients returns connected clients
@@ -100,32 +94,12 @@ func (i *ServerInfo) Clients() []Client {
 	return []Client(clients)
 }
 
-// ClientLen returns the number of connected clients
-func (i *ServerInfo) ClientLen() int {
+// ClientsLen returns the number of connected clients
+func (i *ServerInfo) ClientsLen() int {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
 
 	return len(i.clients)
-}
-
-// String generates an info string
-func (i *ServerInfo) String() string {
-	uptime := i.Uptime()
-
-	i.mutex.Lock()
-	clients := len(i.clients)
-	connections := i.connections
-	processed := i.processed
-	i.mutex.Unlock()
-
-	return fmt.Sprintf(
-		"# Server\nprocess_id:%d\ntcp_port:%s\nunix_socket:%s\nuptime_in_seconds:%d\nuptime_in_days:%d\n\n"+
-			"# Clients\nconnected_clients:%d\n\n"+
-			"# Stats\ntotal_connections_received:%d\ntotal_commands_processed:%d\n",
-		i.ProcessID, i.Port, i.Socket, uptime/time.Second, uptime/time.Hour/24,
-		clients,
-		connections, processed,
-	)
 }
 
 // ClientsString generates a client list
@@ -135,4 +109,18 @@ func (i *ServerInfo) ClientsString() string {
 		str += client.String() + "\n"
 	}
 	return str
+}
+
+// String generates an info string
+func (i *ServerInfo) String() string {
+	uptime := i.Uptime()
+
+	return fmt.Sprintf(
+		"# Server\nprocess_id:%d\ntcp_port:%s\nunix_socket:%s\nuptime_in_seconds:%d\nuptime_in_days:%d\n\n"+
+			"# Clients\nconnected_clients:%d\n\n"+
+			"# Stats\ntotal_connections_received:%d\ntotal_commands_processed:%d\n",
+		i.ProcessID, i.Port, i.Socket, uptime/time.Second, uptime/time.Hour/24,
+		i.ClientsLen(),
+		i.TotalConnections(), i.TotalProcessed(),
+	)
 }

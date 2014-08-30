@@ -10,10 +10,15 @@ var _ = Describe("Client", func() {
 
 	BeforeEach(func() {
 		subject = NewClient("1.2.3.4:10001")
-		subject.ID = 12
+	})
+
+	It("should generate IDs", func() {
+		a, b := NewClient("1.2.3.4:10001"), NewClient("1.2.3.4:10002")
+		Expect(b.ID - 1).To(Equal(a.ID))
 	})
 
 	It("should generate info string", func() {
+		subject.ID = 12
 		Expect(subject.String()).To(Equal(`id=12 addr=1.2.3.4:10001 age=0 cmd=`))
 	})
 
