@@ -2,10 +2,12 @@ package redeo
 
 import (
 	"bufio"
+	"io"
 	"net"
 	"os"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Server configuration
@@ -112,13 +114,24 @@ func (srv *Server) Apply(req *Request) (*Responder, error) {
 func (srv *Server) ServeClient(conn net.Conn) {
 	defer conn.Close()
 
-	rd := bufio.NewReader(conn)
+	if alive := srv.config.TCPKeepAlive; alive > 0 {
+		if tcpconn, ok := conn.(*net.TCPConn); ok {
+			tcpconn.SetKeepAlive(true)
+			tcpconn.SetKeepAlivePeriod(time.Duration(alive) * time.Second)
+		}
+	}
+
+	buffer := bufio.NewReader(conn)
 	client := NewClient(conn.RemoteAddr().String())
 	srv.info.OnConnect(client)
 	defer srv.info.OnDisconnect(client)
 
 	for {
-		req, err := ParseRequest(rd)
+		if timeout := srv.config.Timeout; timeout > 0 {
+			conn.SetReadDeadline(time.Now().Add(time.Duration(timeout) * time.Second))
+		}
+
+		req, err := ParseRequest(buffer)
 		if err != nil {
 			srv.writeError(conn, err)
 			return
@@ -139,6 +152,10 @@ func (srv *Server) ServeClient(conn net.Conn) {
 
 // Serve starts a new session, using `conn` as a transport.
 func (srv *Server) writeError(conn net.Conn, err error) {
+	// Don't try to respond on EOFs
+	if err == io.EOF {
+		return
+	}
 	res := NewResponder()
 	res.WriteError(err)
 	res.WriteTo(conn)

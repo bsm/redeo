@@ -22,17 +22,19 @@ type Client struct {
 	RemoteAddr string      `json:"remote_addr,omitempty"`
 	Ctx        interface{} `json:"ctx,omitempty"`
 
-	cmd   string
-	mutex sync.Mutex
+	lastAccess time.Time
+	lastCmd    string
+	mutex      sync.Mutex
 }
 
 // NewClient creates a new client info container
 func NewClient(addr string) *Client {
-
+	now := time.Now()
 	return &Client{
 		ID:         atomic.AddUint64(&clientInc, 1),
 		RemoteAddr: addr,
-		baseInfo:   baseInfo{StartTime: time.Now()},
+		lastAccess: now,
+		baseInfo:   baseInfo{StartTime: now},
 	}
 }
 
@@ -41,7 +43,8 @@ func (i *Client) OnCommand(cmd string) {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
 
-	i.cmd = cmd
+	i.lastAccess = time.Now()
+	i.lastCmd = cmd
 }
 
 // Command returns the last user command
@@ -49,10 +52,19 @@ func (i *Client) LastCommand() string {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
 
-	return i.cmd
+	return i.lastCmd
+}
+
+// IdleTime returns the duration if idleness
+func (i *Client) IdleTime() time.Duration {
+	now := time.Now()
+	i.mutex.Lock()
+	defer i.mutex.Unlock()
+
+	return now.Sub(i.lastAccess)
 }
 
 // String generates an info string
 func (i *Client) String() string {
-	return fmt.Sprintf("id=%d addr=%s age=%d cmd=%s", i.ID, i.RemoteAddr, i.Uptime()/time.Second, i.LastCommand())
+	return fmt.Sprintf("id=%d addr=%s age=%d idle=%d cmd=%s", i.ID, i.RemoteAddr, i.UpTime()/time.Second, i.IdleTime()/time.Second, i.LastCommand())
 }

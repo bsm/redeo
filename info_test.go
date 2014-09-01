@@ -57,13 +57,14 @@ var _ = Describe("ServerInfo", func() {
 
 	It("should generate client string", func() {
 		str := subject.ClientsString()
-		Expect(str).To(MatchRegexp(`id=\d+ addr=1\.2\.3\.4\:10002 age=\d+ cmd=set`))
-		Expect(str).To(MatchRegexp(`id=\d+ addr=1\.2\.3\.4\:10004 age=\d+ cmd=info`))
-		Expect(str).To(MatchRegexp(`id=\d+ addr=1\.2\.3\.4\:10001 age=\d+ cmd=get`))
+		Expect(str).To(MatchRegexp(`id=\d+ addr=1\.2\.3\.4\:10002 age=\d+ idle=\d+ cmd=set`))
+		Expect(str).To(MatchRegexp(`id=\d+ addr=1\.2\.3\.4\:10004 age=\d+ idle=\d+ cmd=info`))
+		Expect(str).To(MatchRegexp(`id=\d+ addr=1\.2\.3\.4\:10001 age=\d+ idle=\d+ cmd=get`))
 	})
 
 	It("should expose stats", func() {
-		Expect(subject.Uptime()).To(BeNumerically("~", time.Second, time.Second))
+		Expect(subject.UpTime()).To(BeNumerically(">", 0))
+		Expect(subject.UpTime()).To(BeNumerically("<", time.Second))
 		Expect(subject.ClientsLen()).To(Equal(3))
 		Expect(subject.TotalConnections()).To(Equal(uint64(5)))
 		Expect(subject.TotalProcessed()).To(Equal(uint64(12)))

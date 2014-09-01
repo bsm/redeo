@@ -14,8 +14,8 @@ type baseInfo struct {
 	StartTime time.Time `json:"-"`
 }
 
-// Uptime returns the duration since server start
-func (i *baseInfo) Uptime() time.Duration {
+// UpTime returns the duration since server start
+func (i *baseInfo) UpTime() time.Duration {
 	return time.Now().Sub(i.StartTime)
 }
 
@@ -113,7 +113,7 @@ func (i *ServerInfo) ClientsString() string {
 
 // String generates an info string
 func (i *ServerInfo) String() string {
-	uptime := i.Uptime()
+	uptime := i.UpTime()
 
 	return fmt.Sprintf(
 		"# Server\nprocess_id:%d\ntcp_port:%s\nunix_socket:%s\nuptime_in_seconds:%d\nuptime_in_days:%d\n\n"+
