@@ -21,6 +21,7 @@ type Client struct {
 	ID         uint64      `json:"id,omitempty"`
 	RemoteAddr string      `json:"remote_addr,omitempty"`
 	Ctx        interface{} `json:"ctx,omitempty"`
+	doClose    bool
 
 	lastAccess time.Time
 	lastCmd    string
@@ -36,6 +37,14 @@ func NewClient(addr string) *Client {
 		lastAccess: now,
 		baseInfo:   baseInfo{StartTime: now},
 	}
+}
+
+// Close will disconnect the client when the buffer has been send
+func (i *Client) Close() {
+	i.mutex.Lock()
+	defer i.mutex.Unlock()
+
+	i.doClose = true
 }
 
 // OnCommand callback to track user command
