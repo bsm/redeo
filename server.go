@@ -147,6 +147,10 @@ func (srv *Server) ServeClient(conn net.Conn) {
 		if _, err = res.WriteTo(conn); err != nil {
 			return
 		}
+
+		if client.doClose {
+			return
+		}
 	}
 }
 
