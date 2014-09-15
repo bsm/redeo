@@ -141,6 +141,10 @@ func (srv *Server) ServeClient(conn net.Conn) {
 		res, err := srv.Apply(req)
 		if err != nil {
 			srv.writeError(conn, err)
+			// Close on everything except a unknown command.
+			if err == ErrUnknownCommand {
+				continue
+			}
 			return
 		}
 
@@ -154,7 +158,7 @@ func (srv *Server) ServeClient(conn net.Conn) {
 	}
 }
 
-// Serve starts a new session, using `conn` as a transport.
+// writeError write the error to the client.
 func (srv *Server) writeError(conn net.Conn, err error) {
 	// Don't try to respond on EOFs
 	if err == io.EOF {
