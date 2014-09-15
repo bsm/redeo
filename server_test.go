@@ -15,7 +15,7 @@ var _ = Describe("Server", func() {
 	}
 	var echo = func(out *Responder, req *Request) error {
 		if len(req.Args) != 1 {
-			return ErrWrongNumberOfArgs
+			return WrongNumberOfArgs(req.Name)
 		}
 		out.WriteString(req.Args[0])
 		return nil
@@ -39,7 +39,7 @@ var _ = Describe("Server", func() {
 		subject.HandleFunc("echo", echo)
 		client := NewClient("1.2.3.4:10001")
 		res, err := subject.Apply(&Request{Name: "echo", client: client})
-		Expect(err).To(Equal(ErrWrongNumberOfArgs))
+		Expect(err).To(Equal(WrongNumberOfArgs("echo")))
 		Expect(client.LastCommand()).To(Equal("echo"))
 
 		res, err = subject.Apply(&Request{Name: "echo", Args: []string{"SAY HI!"}})

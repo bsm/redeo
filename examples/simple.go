@@ -18,14 +18,14 @@ func main() {
 	})
 	srv.HandleFunc("client", func(out *redeo.Responder, req *redeo.Request) error {
 		if len(req.Args) != 1 {
-			return redeo.ErrWrongNumberOfArgs
+			return redeo.WrongNumberOfArgs(req.Name)
 		}
 
 		switch req.Args[0] {
 		case "list":
 			out.WriteString(srv.Info().ClientsString())
 		default:
-			return redeo.ErrUnknownCommand
+			return redeo.UnknownCommand(req.Name)
 		}
 		return nil
 	})

@@ -101,7 +101,7 @@ func (srv *Server) HandleFunc(name string, callback HandlerFunc) {
 func (srv *Server) Apply(req *Request) (*Responder, error) {
 	cmd, ok := srv.commands[req.Name]
 	if !ok {
-		return nil, ErrUnknownCommand
+		return nil, UnknownCommand(req.Name)
 	}
 
 	srv.info.OnCommand(req.client, req.Name)
@@ -141,6 +141,10 @@ func (srv *Server) ServeClient(conn net.Conn) {
 		res, err := srv.Apply(req)
 		if err != nil {
 			srv.writeError(conn, err)
+			// Don't disconnect clients on simple command errors to allow pipelining
+			if _, ok := err.(ClientError); ok {
+				continue
+			}
 			return
 		}
 
