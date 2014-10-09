@@ -22,52 +22,53 @@ func (r *Request) Client() *Client {
 }
 
 // ParseRequest parses a new request from a buffered connection
-func ParseRequest(rd *bufio.Reader) (req *Request, err error) {
-	var line []byte
-	if line, _, err = rd.ReadLine(); err != nil {
+func ParseRequest(rd *bufio.Reader) (*Request, error) {
+	line, err := rd.ReadString('\n')
+	if err != nil {
 		return nil, io.EOF
-	} else if len(line) < 1 {
+	} else if len(line) < 3 {
 		return nil, io.EOF
 	}
 
-	switch line[0] {
-	case binASTERISK:
-		var argc int
-		if argc, err = strconv.Atoi(string(line[1:])); err != nil {
-			return nil, ErrInvalidRequest
-		}
+	// Truncate CRLF
+	line = line[:len(line)-2]
 
-		args := make([]string, argc)
-		for i := 0; i < argc; i++ {
-			args[i], err = parseArgument(rd)
-			if err != nil {
-				return
-			}
-		}
-		req = &Request{Name: strings.ToLower(args[0]), Args: args[1:]}
-	default:
-		req = &Request{Name: strings.ToLower(string(line))}
+	// Return if inline
+	if line[0] != binASTERISK {
+		return &Request{Name: strings.ToLower(line)}, nil
 	}
-	return
+
+	argc, err := strconv.Atoi(line[1:])
+	if err != nil {
+		return nil, ErrInvalidRequest
+	}
+
+	args := make([]string, argc)
+	for i := 0; i < argc; i++ {
+		if args[i], err = parseArgument(rd); err != nil {
+			return nil, err
+		}
+	}
+	return &Request{Name: strings.ToLower(args[0]), Args: args[1:]}, nil
 }
 
-func parseArgument(rd *bufio.Reader) (part string, err error) {
-	var line []byte
-	if line, _, err = rd.ReadLine(); err != nil {
+func parseArgument(rd *bufio.Reader) (string, error) {
+	line, err := rd.ReadString('\n')
+	if err != nil {
 		return "", io.EOF
-	} else if len(line) < 1 {
+	} else if len(line) < 3 {
 		return "", io.EOF
 	} else if line[0] != binDOLLAR {
 		return "", ErrInvalidRequest
 	}
 
-	var blen int
-	if blen, err = strconv.Atoi(string(line[1:])); err != nil {
+	blen, err := strconv.Atoi(line[1 : len(line)-2])
+	if err != nil {
 		return "", ErrInvalidRequest
 	}
 
 	buf := make([]byte, blen+2)
-	if _, err = io.ReadFull(rd, buf); err != nil {
+	if _, err := io.ReadFull(rd, buf); err != nil {
 		return "", io.EOF
 	}
 
