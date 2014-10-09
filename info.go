@@ -25,7 +25,7 @@ type ServerInfo struct {
 	Socket    string // socket
 	ProcessID int    // process_id
 
-	clients     map[string]*Client
+	clients     map[uint64]*Client
 	connections uint64
 	processed   uint64
 
@@ -40,7 +40,7 @@ func NewServerInfo(config *Config) *ServerInfo {
 		Port:      port,
 		Socket:    config.Socket,
 		ProcessID: os.Getpid(),
-		clients:   make(map[string]*Client),
+		clients:   make(map[uint64]*Client),
 		baseInfo:  baseInfo{StartTime: time.Now()},
 	}
 }
@@ -52,7 +52,7 @@ func (i *ServerInfo) OnConnect(client *Client) {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
 
-	i.clients[client.RemoteAddr] = client
+	i.clients[client.ID] = client
 }
 
 // OnDisconnect callback to de-register client
@@ -60,7 +60,7 @@ func (i *ServerInfo) OnDisconnect(client *Client) {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
 
-	delete(i.clients, client.RemoteAddr)
+	delete(i.clients, client.ID)
 }
 
 // OnCommand callback to track processed command
