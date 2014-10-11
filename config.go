@@ -1,5 +1,7 @@
 package redeo
 
+import "time"
+
 // Server configuration
 type Config struct {
 
@@ -13,7 +15,7 @@ type Config struct {
 	Socket string
 
 	// Close the connection after a client is idle for N seconds (0 to disable)
-	Timeout int
+	Timeout time.Duration
 
 	// If non-zero, use SO_KEEPALIVE to send TCP ACKs to clients in absence
 	// of communication. This is useful for two reasons:
@@ -23,7 +25,7 @@ type Config struct {
 	// On Linux, the specified value (in seconds) is the period used to send ACKs.
 	// Note that to close the connection the double of the time is needed.
 	// On other kernels the period depends on the kernel configuration.
-	TCPKeepAlive int
+	TCPKeepAlive time.Duration
 }
 
 // Default configuration is used when nil is passed to NewServer

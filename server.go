@@ -117,7 +117,7 @@ func (srv *Server) ServeClient(conn net.Conn) {
 	if alive := srv.config.TCPKeepAlive; alive > 0 {
 		if tcpconn, ok := conn.(*net.TCPConn); ok {
 			tcpconn.SetKeepAlive(true)
-			tcpconn.SetKeepAlivePeriod(time.Duration(alive) * time.Second)
+			tcpconn.SetKeepAlivePeriod(alive)
 		}
 	}
 
@@ -128,7 +128,7 @@ func (srv *Server) ServeClient(conn net.Conn) {
 
 	for {
 		if timeout := srv.config.Timeout; timeout > 0 {
-			conn.SetReadDeadline(time.Now().Add(time.Duration(timeout) * time.Second))
+			conn.SetReadDeadline(time.Now().Add(timeout))
 		}
 
 		req, err := ParseRequest(buffer)
