@@ -1,8 +1,6 @@
 package redeo
 
 import (
-	"time"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -22,11 +20,6 @@ var _ = Describe("Client", func() {
 	It("should generate info string", func() {
 		subject.ID = 12
 		Expect(subject.String()).To(Equal(`id=12 addr=1.2.3.4:10001 age=0 idle=0 cmd=`))
-	})
-
-	It("should generate stats", func() {
-		Expect(subject.IdleTime()).To(BeNumerically(">", 0))
-		Expect(subject.IdleTime()).To(BeNumerically("<", time.Second))
 	})
 
 })

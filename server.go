@@ -26,7 +26,7 @@ func NewServer(config *Config) *Server {
 
 	return &Server{
 		config:   config,
-		info:     NewServerInfo(config),
+		info:     newServerInfo(config),
 		commands: make(map[string]Handler),
 	}
 }
@@ -41,7 +41,7 @@ func (srv *Server) Socket() string {
 	return srv.config.Socket
 }
 
-// Info returns the server info
+// Info returns the server info registry
 func (srv *Server) Info() *ServerInfo {
 	return srv.info
 }
@@ -152,7 +152,7 @@ func (srv *Server) ServeClient(conn net.Conn) {
 			return
 		}
 
-		if client.doClose {
+		if client.closed {
 			return
 		}
 	}

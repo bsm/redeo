@@ -40,7 +40,7 @@ var _ = Describe("Server", func() {
 		client := NewClient("1.2.3.4:10001")
 		res, err := subject.Apply(&Request{Name: "echo", client: client})
 		Expect(err).To(Equal(WrongNumberOfArgs("echo")))
-		Expect(client.LastCommand()).To(Equal("echo"))
+		Expect(client.lastCommand).To(Equal("echo"))
 
 		res, err = subject.Apply(&Request{Name: "echo", Args: []string{"SAY HI!"}})
 		Expect(err).NotTo(HaveOccurred())

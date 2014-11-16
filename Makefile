@@ -5,7 +5,7 @@ testdeps: deps
 	@go get github.com/onsi/gomega
 
 test: testdeps
-	@go test
+	@go test ./...
 
 .PHONY: test
 

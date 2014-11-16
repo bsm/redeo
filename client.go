@@ -17,35 +17,30 @@ var clientInc = uint64(0)
 
 // A client is the origin of a request
 type Client struct {
-	baseInfo
 	ID         uint64      `json:"id,omitempty"`
 	RemoteAddr string      `json:"remote_addr,omitempty"`
 	Ctx        interface{} `json:"ctx,omitempty"`
-	doClose    bool
 
-	lastAccess time.Time
-	lastCmd    string
-	mutex      sync.Mutex
+	closed      bool
+	firstAccess time.Time
+	lastAccess  time.Time
+	lastCommand string
+	mutex       sync.Mutex
 }
 
 // NewClient creates a new client info container
 func NewClient(addr string) *Client {
 	now := time.Now()
 	return &Client{
-		ID:         atomic.AddUint64(&clientInc, 1),
-		RemoteAddr: addr,
-		lastAccess: now,
-		baseInfo:   baseInfo{StartTime: now},
+		ID:          atomic.AddUint64(&clientInc, 1),
+		RemoteAddr:  addr,
+		firstAccess: now,
+		lastAccess:  now,
 	}
 }
 
 // Close will disconnect the client when the buffer has been send
-func (i *Client) Close() {
-	i.mutex.Lock()
-	defer i.mutex.Unlock()
-
-	i.doClose = true
-}
+func (i *Client) Close() { i.closed = true }
 
 // OnCommand callback to track user command
 func (i *Client) OnCommand(cmd string) {
@@ -53,27 +48,19 @@ func (i *Client) OnCommand(cmd string) {
 	defer i.mutex.Unlock()
 
 	i.lastAccess = time.Now()
-	i.lastCmd = cmd
-}
-
-// Command returns the last user command
-func (i *Client) LastCommand() string {
-	i.mutex.Lock()
-	defer i.mutex.Unlock()
-
-	return i.lastCmd
-}
-
-// IdleTime returns the duration if idleness
-func (i *Client) IdleTime() time.Duration {
-	now := time.Now()
-	i.mutex.Lock()
-	defer i.mutex.Unlock()
-
-	return now.Sub(i.lastAccess)
+	i.lastCommand = cmd
 }
 
 // String generates an info string
 func (i *Client) String() string {
-	return fmt.Sprintf("id=%d addr=%s age=%d idle=%d cmd=%s", i.ID, i.RemoteAddr, i.UpTime()/time.Second, i.IdleTime()/time.Second, i.LastCommand())
+	i.mutex.Lock()
+	cmd := i.lastCommand
+	atime := i.lastAccess
+	i.mutex.Unlock()
+
+	now := time.Now()
+	age := now.Sub(i.firstAccess) / time.Second
+	idle := now.Sub(atime) / time.Second
+
+	return fmt.Sprintf("id=%d addr=%s age=%d idle=%d cmd=%s", i.ID, i.RemoteAddr, age, idle, cmd)
 }

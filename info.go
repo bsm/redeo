@@ -1,57 +1,85 @@
 package redeo
 
 import (
-	"fmt"
 	"net"
 	"os"
 	"sort"
+	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
+
+	"github.com/bsm/redeo/info"
 )
 
-type baseInfo struct {
-	StartTime time.Time `json:"-"`
-}
-
-// UpTime returns the duration since server start
-func (i *baseInfo) UpTime() time.Duration {
-	return time.Now().Sub(i.StartTime)
-}
-
 type ServerInfo struct {
-	baseInfo
-	Port      string // tcp_port
-	Socket    string // socket
-	ProcessID int    // process_id
+	registry *info.Registry
+
+	startTime time.Time
+	port      string
+	socket    string
+	pid       int
 
 	clients     map[uint64]*Client
-	connections uint64
-	processed   uint64
+	connections *info.Counter
+	commands    *info.Counter
 
-	mutex sync.Mutex
+	mutex sync.RWMutex
 }
 
-// NewServerInfo creates a new server info container
-func NewServerInfo(config *Config) *ServerInfo {
+// newServerInfo creates a new server info container
+func newServerInfo(config *Config) *ServerInfo {
+
+	info := &ServerInfo{
+		registry:    info.New(),
+		startTime:   time.Now(),
+		connections: info.NewCounter(),
+		commands:    info.NewCounter(),
+		clients:     make(map[uint64]*Client),
+	}
+	return info.withDefaults(config)
+}
+
+// Apply default info
+func (i *ServerInfo) withDefaults(config *Config) *ServerInfo {
 	_, port, _ := net.SplitHostPort(config.Addr)
 
-	return &ServerInfo{
-		Port:      port,
-		Socket:    config.Socket,
-		ProcessID: os.Getpid(),
-		clients:   make(map[uint64]*Client),
-		baseInfo:  baseInfo{StartTime: time.Now()},
-	}
+	server := i.Section("Server")
+	server.Register("process_id", info.PlainInt(os.Getpid()))
+	server.Register("tcp_port", info.PlainString(port))
+	server.Register("unix_socket", info.PlainString(config.Socket))
+	server.Register("uptime_in_seconds", info.Callback(func() string {
+		d := time.Now().Sub(i.startTime) / time.Second
+		return strconv.FormatInt(int64(d), 10)
+	}))
+	server.Register("uptime_in_days", info.Callback(func() string {
+		d := time.Now().Sub(i.startTime) / time.Hour / 24
+		return strconv.FormatInt(int64(d), 10)
+	}))
+
+	clients := i.Section("Clients")
+	clients.Register("connected_clients", info.Callback(func() string {
+		return strconv.Itoa(i.ClientsLen())
+	}))
+
+	stats := i.Section("Stats")
+	stats.Register("total_connections_received", i.connections)
+	stats.Register("total_commands_processed", i.commands)
+
+	return i
 }
+
+// Section finds-or-creates an info section
+func (i *ServerInfo) Section(name string) *info.Section { return i.registry.Section(name) }
+
+// String generates an info string
+func (i *ServerInfo) String() string { return i.registry.String() }
 
 // OnConnect callback to register client connection
 func (i *ServerInfo) OnConnect(client *Client) {
-	atomic.AddUint64(&i.connections, 1)
+	i.connections.Inc(1)
 
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
-
 	i.clients[client.ID] = client
 }
 
@@ -59,36 +87,25 @@ func (i *ServerInfo) OnConnect(client *Client) {
 func (i *ServerInfo) OnDisconnect(client *Client) {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
-
 	delete(i.clients, client.ID)
 }
 
 // OnCommand callback to track processed command
 func (i *ServerInfo) OnCommand(client *Client, cmd string) {
-	atomic.AddUint64(&i.processed, 1)
+	i.commands.Inc(1)
 	if client != nil {
 		client.OnCommand(cmd)
 	}
 }
 
-// TotalConnections returns the number of total connections since start
-func (i *ServerInfo) TotalConnections() uint64 {
-	return atomic.LoadUint64(&i.connections)
-}
-
-// TotalProcessed returns the number of processed commands since start
-func (i *ServerInfo) TotalProcessed() uint64 {
-	return atomic.LoadUint64(&i.processed)
-}
-
 // Clients returns connected clients
 func (i *ServerInfo) Clients() []Client {
-	i.mutex.Lock()
+	i.mutex.RLock()
 	clients := make(clientSlice, 0, len(i.clients))
 	for _, c := range i.clients {
 		clients = append(clients, *c)
 	}
-	i.mutex.Unlock()
+	i.mutex.RUnlock()
 
 	sort.Sort(clients)
 	return []Client(clients)
@@ -96,9 +113,8 @@ func (i *ServerInfo) Clients() []Client {
 
 // ClientsLen returns the number of connected clients
 func (i *ServerInfo) ClientsLen() int {
-	i.mutex.Lock()
-	defer i.mutex.Unlock()
-
+	i.mutex.RLock()
+	defer i.mutex.RUnlock()
 	return len(i.clients)
 }
 
@@ -109,18 +125,4 @@ func (i *ServerInfo) ClientsString() string {
 		str += client.String() + "\n"
 	}
 	return str
-}
-
-// String generates an info string
-func (i *ServerInfo) String() string {
-	uptime := i.UpTime()
-
-	return fmt.Sprintf(
-		"# Server\nprocess_id:%d\ntcp_port:%s\nunix_socket:%s\nuptime_in_seconds:%d\nuptime_in_days:%d\n\n"+
-			"# Clients\nconnected_clients:%d\n\n"+
-			"# Stats\ntotal_connections_received:%d\ntotal_commands_processed:%d\n",
-		i.ProcessID, i.Port, i.Socket, uptime/time.Second, uptime/time.Hour/24,
-		i.ClientsLen(),
-		i.TotalConnections(), i.TotalProcessed(),
-	)
 }
