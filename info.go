@@ -126,3 +126,15 @@ func (i *ServerInfo) ClientsString() string {
 	}
 	return str
 }
+
+// TotalConnections returns the total number of connections made since the
+// start of the server.
+func (i *ServerInfo) TotalConnections() int64 {
+	return i.connections.Value()
+}
+
+// TotalCommands returns the total number of commands executed since the start
+// of the server.
+func (i *ServerInfo) TotalCommands() int64 {
+	return i.commands.Value()
+}
