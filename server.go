@@ -15,6 +15,7 @@ type Server struct {
 	config   *Config
 	info     *ServerInfo
 	commands map[string]Handler
+	conns    map[net.Conn]struct{}
 	mutex    sync.Mutex
 }
 
@@ -28,6 +29,7 @@ func NewServer(config *Config) *Server {
 		config:   config,
 		info:     newServerInfo(config),
 		commands: make(map[string]Handler),
+		conns:    make(map[net.Conn]struct{}),
 	}
 }
 
@@ -110,8 +112,31 @@ func (srv *Server) Apply(req *Request) (*Responder, error) {
 	return res, err
 }
 
+func (srv *Server) addClient(conn net.Conn) {
+	srv.mutex.Lock()
+	defer srv.mutex.Unlock()
+	srv.conns[conn] = struct{}{}
+}
+
+func (srv *Server) removeClient(conn net.Conn) {
+	srv.mutex.Lock()
+	defer srv.mutex.Unlock()
+	delete(srv.conns, conn)
+}
+
+func (srv *Server) Close() {
+	srv.mutex.Lock()
+	defer srv.mutex.Unlock()
+
+	for conn, _ := range srv.conns {
+		conn.Close()
+	}
+}
+
 // Serve starts a new session, using `conn` as a transport.
 func (srv *Server) ServeClient(conn net.Conn) {
+	srv.addClient(conn)
+	defer srv.removeClient(conn)
 	defer conn.Close()
 
 	if alive := srv.config.TCPKeepAlive; alive > 0 {
