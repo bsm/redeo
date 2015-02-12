@@ -2,6 +2,7 @@ package redeo
 
 import (
 	"fmt"
+	"net"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -20,6 +21,7 @@ type Client struct {
 	ID         uint64      `json:"id,omitempty"`
 	RemoteAddr string      `json:"remote_addr,omitempty"`
 	Ctx        interface{} `json:"ctx,omitempty"`
+	conn       RemoteAddrCloser
 
 	closed      bool
 	firstAccess time.Time
@@ -28,19 +30,29 @@ type Client struct {
 	mutex       sync.Mutex
 }
 
+type RemoteAddrCloser interface {
+	RemoteAddr() net.Addr
+	Close() error
+}
+
 // NewClient creates a new client info container
-func NewClient(addr string) *Client {
+func NewClient(conn RemoteAddrCloser) *Client {
 	now := time.Now()
 	return &Client{
-		ID:          atomic.AddUint64(&clientInc, 1),
-		RemoteAddr:  addr,
 		firstAccess: now,
 		lastAccess:  now,
+		ID:          atomic.AddUint64(&clientInc, 1),
+		RemoteAddr:  conn.RemoteAddr().String(),
+		conn:        conn,
 	}
 }
 
-// Close will disconnect the client when the buffer has been send
-func (i *Client) Close() { i.closed = true }
+// Close will close client
+func (i *Client) Close() {
+	i.mutex.Lock()
+	defer i.mutex.Unlock()
+	i.conn.Close()
+}
 
 // OnCommand callback to track user command
 func (i *Client) OnCommand(cmd string) {

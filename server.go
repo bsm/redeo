@@ -110,6 +110,15 @@ func (srv *Server) Apply(req *Request) (*Responder, error) {
 	return res, err
 }
 
+func (srv *Server) Close() {
+	srv.mutex.Lock()
+	defer srv.mutex.Unlock()
+
+	for _, client := range srv.info.clients {
+		client.Close()
+	}
+}
+
 // Serve starts a new session, using `conn` as a transport.
 func (srv *Server) ServeClient(conn net.Conn) {
 	defer conn.Close()
@@ -122,7 +131,7 @@ func (srv *Server) ServeClient(conn net.Conn) {
 	}
 
 	buffer := bufio.NewReader(conn)
-	client := NewClient(conn.RemoteAddr().String())
+	client := NewClient(conn)
 	srv.info.OnConnect(client)
 	defer srv.info.OnDisconnect(client)
 
@@ -149,10 +158,6 @@ func (srv *Server) ServeClient(conn net.Conn) {
 		}
 
 		if _, err = res.WriteTo(conn); err != nil {
-			return
-		}
-
-		if client.closed {
 			return
 		}
 	}

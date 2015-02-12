@@ -14,7 +14,7 @@ var _ = Describe("ServerInfo", func() {
 			Socket: "/tmp/redeo.sock",
 		})
 
-		a, b, c, d := NewClient("1.2.3.4:10001"), NewClient("1.2.3.4:10002"), NewClient("1.2.3.4:10003"), NewClient("1.2.3.4:10004")
+		a, b, c, d := NewClient(NewMockConn("1.2.3.4:10001")), NewClient(NewMockConn("1.2.3.4:10002")), NewClient(NewMockConn("1.2.3.4:10003")), NewClient(NewMockConn("1.2.3.4:10004"))
 		subject.OnConnect(a)
 		subject.OnCommand(a, "ping")
 		subject.OnCommand(a, "info")

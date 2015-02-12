@@ -3,17 +3,42 @@ package redeo
 import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"net"
 )
+
+type mockConn struct {
+	addr string
+}
+
+func NewMockConn(addr string) *mockConn {
+	return &mockConn{addr: addr}
+}
+
+func (c *mockConn) Close() error {
+	return nil
+}
+
+func (c *mockConn) Network() string {
+	return ""
+}
+
+func (c *mockConn) String() string {
+	return c.addr
+}
+
+func (c *mockConn) RemoteAddr() net.Addr {
+	return c
+}
 
 var _ = Describe("Client", func() {
 	var subject *Client
 
 	BeforeEach(func() {
-		subject = NewClient("1.2.3.4:10001")
+		subject = NewClient(NewMockConn("1.2.3.4:10001"))
 	})
 
 	It("should generate IDs", func() {
-		a, b := NewClient("1.2.3.4:10001"), NewClient("1.2.3.4:10002")
+		a, b := NewClient(NewMockConn("1.2.3.4:10001")), NewClient(NewMockConn("1.2.3.4:10002"))
 		Expect(b.ID - 1).To(Equal(a.ID))
 	})
 

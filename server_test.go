@@ -37,7 +37,7 @@ var _ = Describe("Server", func() {
 
 	It("should apply requests", func() {
 		subject.HandleFunc("echo", echo)
-		client := NewClient("1.2.3.4:10001")
+		client := NewClient(NewMockConn("1.2.3.4:10001"))
 		res, err := subject.Apply(&Request{Name: "echo", client: client})
 		Expect(err).To(Equal(WrongNumberOfArgs("echo")))
 		Expect(client.lastCommand).To(Equal("echo"))
