@@ -3,9 +3,7 @@ package redeo
 import (
 	"net"
 	"os"
-	"sort"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/bsm/redeo/info"
@@ -19,25 +17,55 @@ type ServerInfo struct {
 	socket    string
 	pid       int
 
-	clients     map[uint64]*Client
+	clients     *clients
 	connections *info.Counter
 	commands    *info.Counter
-
-	mutex sync.RWMutex
 }
 
 // newServerInfo creates a new server info container
-func newServerInfo(config *Config) *ServerInfo {
-
+func newServerInfo(config *Config, clients *clients) *ServerInfo {
 	info := &ServerInfo{
 		registry:    info.New(),
 		startTime:   time.Now(),
 		connections: info.NewCounter(),
 		commands:    info.NewCounter(),
-		clients:     make(map[uint64]*Client),
+		clients:     clients,
 	}
 	return info.withDefaults(config)
 }
+
+// ------------------------------------------------------------------------
+
+// Section finds-or-creates an info section
+func (i *ServerInfo) Section(name string) *info.Section { return i.registry.Section(name) }
+
+// String generates an info string
+func (i *ServerInfo) String() string { return i.registry.String() }
+
+// ClientsLen returns the number of connected clients
+func (i *ServerInfo) ClientsLen() int { return i.clients.Len() }
+
+// Clients generates a slice of connected clients
+func (i *ServerInfo) Clients() []*Client { return i.clients.All() }
+
+// ClientsString generates a client list
+func (i *ServerInfo) ClientsString() string {
+	str := ""
+	for _, client := range i.Clients() {
+		str += client.String() + "\n"
+	}
+	return str
+}
+
+// TotalConnections returns the total number of connections made since the
+// start of the server.
+func (i *ServerInfo) TotalConnections() int64 { return i.connections.Value() }
+
+// TotalCommands returns the total number of commands executed since the start
+// of the server.
+func (i *ServerInfo) TotalCommands() int64 { return i.commands.Value() }
+
+// ------------------------------------------------------------------------
 
 // Apply default info
 func (i *ServerInfo) withDefaults(config *Config) *ServerInfo {
@@ -68,73 +96,8 @@ func (i *ServerInfo) withDefaults(config *Config) *ServerInfo {
 	return i
 }
 
-// Section finds-or-creates an info section
-func (i *ServerInfo) Section(name string) *info.Section { return i.registry.Section(name) }
+// Callback to register a new client connection
+func (i *ServerInfo) onConnect() { i.connections.Inc(1) }
 
-// String generates an info string
-func (i *ServerInfo) String() string { return i.registry.String() }
-
-// OnConnect callback to register client connection
-func (i *ServerInfo) OnConnect(client *Client) {
-	i.connections.Inc(1)
-
-	i.mutex.Lock()
-	defer i.mutex.Unlock()
-	i.clients[client.ID] = client
-}
-
-// OnDisconnect callback to de-register client
-func (i *ServerInfo) OnDisconnect(client *Client) {
-	i.mutex.Lock()
-	defer i.mutex.Unlock()
-	delete(i.clients, client.ID)
-}
-
-// OnCommand callback to track processed command
-func (i *ServerInfo) OnCommand(client *Client, cmd string) {
-	i.commands.Inc(1)
-	if client != nil {
-		client.OnCommand(cmd)
-	}
-}
-
-// Clients returns connected clients
-func (i *ServerInfo) Clients() []Client {
-	i.mutex.RLock()
-	clients := make(clientSlice, 0, len(i.clients))
-	for _, c := range i.clients {
-		clients = append(clients, *c)
-	}
-	i.mutex.RUnlock()
-
-	sort.Sort(clients)
-	return []Client(clients)
-}
-
-// ClientsLen returns the number of connected clients
-func (i *ServerInfo) ClientsLen() int {
-	i.mutex.RLock()
-	defer i.mutex.RUnlock()
-	return len(i.clients)
-}
-
-// ClientsString generates a client list
-func (i *ServerInfo) ClientsString() string {
-	str := ""
-	for _, client := range i.Clients() {
-		str += client.String() + "\n"
-	}
-	return str
-}
-
-// TotalConnections returns the total number of connections made since the
-// start of the server.
-func (i *ServerInfo) TotalConnections() int64 {
-	return i.connections.Value()
-}
-
-// TotalCommands returns the total number of commands executed since the start
-// of the server.
-func (i *ServerInfo) TotalCommands() int64 {
-	return i.commands.Value()
-}
+// Callback to track processed command
+func (i *ServerInfo) onCommand() { i.commands.Inc(1) }

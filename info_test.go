@@ -9,31 +9,26 @@ var _ = Describe("ServerInfo", func() {
 	var subject *ServerInfo
 
 	BeforeEach(func() {
+		a, b, c := NewClient(&mockConn{Port: 10001}), NewClient(&mockConn{Port: 10002}), NewClient(&mockConn{Port: 10004})
+		a.trackCommand("get")
+		b.trackCommand("set")
+		c.trackCommand("info")
+
+		clients := newClientRegistry()
+		clients.Put(a)
+		clients.Put(b)
+		clients.Put(c)
+
 		subject = newServerInfo(&Config{
 			Addr:   "127.0.0.1:9736",
 			Socket: "/tmp/redeo.sock",
-		})
-
-		a, b, c, d := NewClient("1.2.3.4:10001"), NewClient("1.2.3.4:10002"), NewClient("1.2.3.4:10003"), NewClient("1.2.3.4:10004")
-		subject.OnConnect(a)
-		subject.OnCommand(a, "ping")
-		subject.OnCommand(a, "info")
-		subject.OnConnect(b)
-		subject.OnCommand(b, "get")
-		subject.OnCommand(a, "ping")
-		subject.OnCommand(a, "get")
-		subject.OnCommand(b, "set")
-		subject.OnConnect(c)
-		subject.OnCommand(c, "ping")
-		subject.OnCommand(c, "info")
-		subject.OnDisconnect(a)
-		subject.OnConnect(d)
-		subject.OnCommand(d, "ping")
-		subject.OnCommand(d, "info")
-		subject.OnConnect(a)
-		subject.OnCommand(c, "quit")
-		subject.OnDisconnect(c)
-		subject.OnCommand(nil, "noop")
+		}, clients)
+		for i := 0; i < 5; i++ {
+			subject.onConnect()
+		}
+		for i := 0; i < 12; i++ {
+			subject.onCommand()
+		}
 	})
 
 	It("should generate info string", func() {
@@ -48,11 +43,15 @@ var _ = Describe("ServerInfo", func() {
 		Expect(str).To(ContainSubstring("# Stats\ntotal_connections_received:5\ntotal_commands_processed:12\n"))
 	})
 
+	It("should retrieve a list of clients", func() {
+		Expect(subject.Clients()).To(HaveLen(3))
+	})
+
 	It("should generate client string", func() {
 		str := subject.ClientsString()
+		Expect(str).To(MatchRegexp(`id=\d+ addr=1\.2\.3\.4\:10001 age=\d+ idle=\d+ cmd=get`))
 		Expect(str).To(MatchRegexp(`id=\d+ addr=1\.2\.3\.4\:10002 age=\d+ idle=\d+ cmd=set`))
 		Expect(str).To(MatchRegexp(`id=\d+ addr=1\.2\.3\.4\:10004 age=\d+ idle=\d+ cmd=info`))
-		Expect(str).To(MatchRegexp(`id=\d+ addr=1\.2\.3\.4\:10001 age=\d+ idle=\d+ cmd=get`))
 	})
 
 })

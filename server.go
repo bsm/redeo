@@ -6,7 +6,6 @@ import (
 	"net"
 	"os"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -15,7 +14,9 @@ type Server struct {
 	config   *Config
 	info     *ServerInfo
 	commands map[string]Handler
-	mutex    sync.Mutex
+
+	tcp, unix net.Listener
+	clients   *clients
 }
 
 // NewServer creates a new server instance
@@ -24,9 +25,11 @@ func NewServer(config *Config) *Server {
 		config = DefaultConfig
 	}
 
+	clients := newClientRegistry()
 	return &Server{
 		config:   config,
-		info:     newServerInfo(config),
+		clients:  clients,
+		info:     newServerInfo(config, clients),
 		commands: make(map[string]Handler),
 	}
 }
@@ -36,7 +39,7 @@ func (srv *Server) Addr() string {
 	return srv.config.Addr
 }
 
-// Addr returns the server Socket address
+// Socket returns the server UNIX socket address
 func (srv *Server) Socket() string {
 	return srv.config.Socket
 }
@@ -46,11 +49,36 @@ func (srv *Server) Info() *ServerInfo {
 	return srv.info
 }
 
-// Handle registers a handler for a command
-func (srv *Server) Handle(name string, handler Handler) {
-	srv.mutex.Lock()
-	defer srv.mutex.Unlock()
+// Close shuts down the server and closes all connections
+func (srv *Server) Close() (err error) {
 
+	// Stop new TCP connections
+	if srv.tcp != nil {
+		if e := srv.tcp.Close(); e != nil {
+			err = e
+		}
+		srv.tcp = nil
+	}
+
+	// Stop new Unix socket connections
+	if srv.unix != nil {
+		if e := srv.unix.Close(); e != nil {
+			err = e
+		}
+		srv.unix = nil
+	}
+
+	// Terminate all clients
+	if e := srv.clients.Clear(); err != nil {
+		err = e
+	}
+
+	return
+}
+
+// Handle registers a handler for a command.
+// Not thread-safe, don't call from multiple goroutines
+func (srv *Server) Handle(name string, handler Handler) {
 	srv.commands[strings.ToLower(name)] = handler
 }
 
@@ -66,30 +94,33 @@ func (srv *Server) Apply(req *Request) (*Responder, error) {
 		return nil, UnknownCommand(req.Name)
 	}
 
-	srv.info.OnCommand(req.client, req.Name)
+	srv.info.onCommand()
+	if req.client != nil {
+		req.client.trackCommand(req.Name)
+	}
 	res := NewResponder()
 	err := cmd.ServeClient(res, req)
 	return res, err
 }
 
 // ListenAndServe starts the server
-func (srv *Server) ListenAndServe() error {
-	errs := make(chan error)
+func (srv *Server) ListenAndServe() (err error) {
+	errs := make(chan error, 2)
 
 	if srv.Addr() != "" {
-		lis, err := net.Listen("tcp", srv.Addr())
+		srv.tcp, err = net.Listen("tcp", srv.Addr())
 		if err != nil {
-			return err
+			return
 		}
-		go srv.serve(errs, lis)
+		go srv.serve(errs, srv.tcp)
 	}
 
 	if srv.Socket() != "" {
-		lis, err := srv.listenUnix()
+		srv.unix, err = srv.listenUnix()
 		if err != nil {
 			return err
 		}
-		go srv.serve(errs, lis)
+		go srv.serve(errs, srv.unix)
 	}
 
 	return <-errs
@@ -106,41 +137,44 @@ func (srv *Server) serve(errs chan error, lis net.Listener) {
 			errs <- err
 			return
 		}
-		go srv.serveClient(conn)
+		go srv.serveClient(NewClient(conn))
 	}
 }
 
-// Serve starts a new session, using `conn` as a transport.
-func (srv *Server) serveClient(conn net.Conn) {
-	defer conn.Close()
+// Starts a new session, serving client
+func (srv *Server) serveClient(client *Client) {
+	// Register client
+	srv.clients.Put(client)
+	defer srv.clients.Close(client.id)
 
+	// Track connection
+	srv.info.onConnect()
+
+	// Apply TCP keep-alive, if configured
 	if alive := srv.config.TCPKeepAlive; alive > 0 {
-		if tcpconn, ok := conn.(*net.TCPConn); ok {
+		if tcpconn, ok := client.conn.(*net.TCPConn); ok {
 			tcpconn.SetKeepAlive(true)
 			tcpconn.SetKeepAlivePeriod(alive)
 		}
 	}
 
-	buffer := bufio.NewReader(conn)
-	client := NewClient(conn.RemoteAddr().String())
-	srv.info.OnConnect(client)
-	defer srv.info.OnDisconnect(client)
-
+	// Init request/response loop
+	buffer := bufio.NewReader(client.conn)
 	for {
 		if timeout := srv.config.Timeout; timeout > 0 {
-			conn.SetReadDeadline(time.Now().Add(timeout))
+			client.conn.SetDeadline(time.Now().Add(timeout))
 		}
 
 		req, err := ParseRequest(buffer)
 		if err != nil {
-			srv.writeError(conn, err)
+			srv.writeError(client.conn, err)
 			return
 		}
 		req.client = client
 
 		res, err := srv.Apply(req)
 		if err != nil {
-			srv.writeError(conn, err)
+			srv.writeError(client.conn, err)
 			// Don't disconnect clients on simple command errors to allow pipelining
 			if _, ok := err.(ClientError); ok {
 				continue
@@ -148,11 +182,9 @@ func (srv *Server) serveClient(conn net.Conn) {
 			return
 		}
 
-		if _, err = res.WriteTo(conn); err != nil {
+		if _, err = res.WriteTo(client.conn); err != nil {
 			return
-		}
-
-		if client.closed {
+		} else if client.quit {
 			return
 		}
 	}

@@ -2,54 +2,55 @@ package redeo
 
 import (
 	"fmt"
+	"net"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
-type clientSlice []Client
+type clientSlice []*Client
 
 func (p clientSlice) Len() int           { return len(p) }
-func (p clientSlice) Less(i, j int) bool { return p[i].ID < p[j].ID }
+func (p clientSlice) Less(i, j int) bool { return p[i].id < p[j].id }
 func (p clientSlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 var clientInc = uint64(0)
 
 // A client is the origin of a request
 type Client struct {
-	ID         uint64      `json:"id,omitempty"`
-	RemoteAddr string      `json:"remote_addr,omitempty"`
-	Ctx        interface{} `json:"ctx,omitempty"`
+	Ctx interface{}
 
-	closed      bool
+	id   uint64
+	conn net.Conn
+
 	firstAccess time.Time
 	lastAccess  time.Time
 	lastCommand string
-	mutex       sync.Mutex
+
+	quit  bool
+	mutex sync.Mutex
 }
 
 // NewClient creates a new client info container
-func NewClient(addr string) *Client {
+func NewClient(conn net.Conn) *Client {
 	now := time.Now()
 	return &Client{
-		ID:          atomic.AddUint64(&clientInc, 1),
-		RemoteAddr:  addr,
+		id:          atomic.AddUint64(&clientInc, 1),
+		conn:        conn,
 		firstAccess: now,
 		lastAccess:  now,
 	}
 }
 
-// Close will disconnect the client when the buffer has been send
-func (i *Client) Close() { i.closed = true }
+// ID return the unique client id
+func (i *Client) ID() uint64 { return i.id }
 
-// OnCommand callback to track user command
-func (i *Client) OnCommand(cmd string) {
-	i.mutex.Lock()
-	defer i.mutex.Unlock()
+// RemoteAddr return the remote client address
+func (i *Client) RemoteAddr() net.Addr { return i.conn.RemoteAddr() }
 
-	i.lastAccess = time.Now()
-	i.lastCommand = cmd
-}
+// Close will disconnect as soon as all pending replies have been written
+// to the client
+func (i *Client) Close() { i.quit = true }
 
 // String generates an info string
 func (i *Client) String() string {
@@ -62,5 +63,19 @@ func (i *Client) String() string {
 	age := now.Sub(i.firstAccess) / time.Second
 	idle := now.Sub(atime) / time.Second
 
-	return fmt.Sprintf("id=%d addr=%s age=%d idle=%d cmd=%s", i.ID, i.RemoteAddr, age, idle, cmd)
+	return fmt.Sprintf("id=%d addr=%s age=%d idle=%d cmd=%s", i.id, i.RemoteAddr(), age, idle, cmd)
+}
+
+// ------------------------------------------------------------------------
+
+// Instantly closes the underlying socket connection
+func (i *Client) close() error { return i.conn.Close() }
+
+// Tracks user command
+func (i *Client) trackCommand(cmd string) {
+	i.mutex.Lock()
+	defer i.mutex.Unlock()
+
+	i.lastAccess = time.Now()
+	i.lastCommand = cmd
 }

@@ -1,6 +1,8 @@
 package redeo
 
 import (
+	"io"
+	"net"
 	"strings"
 
 	. "github.com/onsi/ginkgo"
@@ -29,6 +31,47 @@ var _ = Describe("Server", func() {
 		Expect(subject.config).To(Equal(DefaultConfig))
 	})
 
+	It("should listen/serve/close", func() {
+		subject.HandleFunc("pInG", pong)
+
+		// Listen to connections
+		ec := make(chan error, 1)
+		go func() {
+			ec <- subject.ListenAndServe()
+		}()
+
+		// Connect client
+		var clnt net.Conn
+		Eventually(func() (err error) {
+			clnt, err = net.Dial("tcp", "127.0.0.1:9736")
+			return err
+		}).ShouldNot(HaveOccurred())
+		defer clnt.Close()
+
+		// Ping
+		pong := make([]byte, 10)
+		_, err := clnt.Write([]byte("PING\r\n"))
+		Expect(err).NotTo(HaveOccurred())
+		n, err := clnt.Read(pong)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(string(pong[:n])).To(Equal("+PONG\r\n"))
+
+		// Close
+		err = subject.Close()
+		Expect(err).NotTo(HaveOccurred())
+
+		// Expect to exit
+		err = <-ec
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("closed"))
+
+		// Ping again
+		_, err = clnt.Write([]byte("PING\r\n"))
+		Expect(err).NotTo(HaveOccurred())
+		_, err = clnt.Read(pong)
+		Expect(err).To(Equal(io.EOF))
+	})
+
 	It("should register handlers", func() {
 		subject.HandleFunc("pInG", pong)
 		Expect(subject.commands).To(HaveLen(1))
@@ -37,7 +80,7 @@ var _ = Describe("Server", func() {
 
 	It("should apply requests", func() {
 		subject.HandleFunc("echo", echo)
-		client := NewClient("1.2.3.4:10001")
+		client := NewClient(&mockConn{})
 		res, err := subject.Apply(&Request{Name: "echo", client: client})
 		Expect(err).To(Equal(WrongNumberOfArgs("echo")))
 		Expect(client.lastCommand).To(Equal("echo"))
@@ -50,6 +93,9 @@ var _ = Describe("Server", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(res.Len()).To(Equal(100011))
 		Expect(res.String()[:9]).To(Equal("$100000\r\n"))
+
+		Expect(client.lastCommand).To(Equal("echo"))
+		Expect(subject.Info().TotalCommands()).To(Equal(int64(3)))
 	})
 
 })

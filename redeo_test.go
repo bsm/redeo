@@ -1,16 +1,35 @@
 package redeo
 
 import (
+	"bytes"
+	"net"
+	"testing"
+	"time"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"testing"
 )
 
-/*************************************************************************
- * GINKGO TEST HOOK
- *************************************************************************/
+// ------------------------------------------------------------------------
 
 func TestSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "redeo")
 }
+
+// ------------------------------------------------------------------------
+
+type mockConn struct {
+	bytes.Buffer
+	Port   int
+	closed bool
+}
+
+func (m *mockConn) Close() error                       { m.closed = true; return nil }
+func (m *mockConn) LocalAddr() net.Addr                { return &net.TCPAddr{net.IP{127, 0, 0, 1}, 9736, ""} }
+func (m *mockConn) RemoteAddr() net.Addr               { return &net.TCPAddr{net.IP{1, 2, 3, 4}, m.Port, ""} }
+func (m *mockConn) SetDeadline(_ time.Time) error      { return nil }
+func (m *mockConn) SetReadDeadline(_ time.Time) error  { return nil }
+func (m *mockConn) SetWriteDeadline(_ time.Time) error { return nil }
+
+var _ net.Conn = &mockConn{}
