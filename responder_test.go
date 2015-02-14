@@ -38,9 +38,19 @@ var _ = Describe("Responder", func() {
 		Expect(out.String()).To(Equal("$5\r\nHELLO\r\n"))
 	})
 
+	It("should write string slices", func() {
+		subject.WriteStringBulk([]string{"A", "", "CD"})
+		Expect(out.String()).To(Equal("*3\r\n$1\r\nA\r\n$0\r\n\r\n$2\r\nCD\r\n"))
+	})
+
 	It("should write plain bytes", func() {
 		subject.WriteBytes([]byte("HELLO"))
 		Expect(out.String()).To(Equal("$5\r\nHELLO\r\n"))
+	})
+
+	It("should write byte slices", func() {
+		subject.WriteBulk([][]byte{{'A'}, nil, {'C', 'D'}})
+		Expect(out.String()).To(Equal("*3\r\n$1\r\nA\r\n$-1\r\n$2\r\nCD\r\n"))
 	})
 
 	It("should write ints", func() {
@@ -118,6 +128,35 @@ func BenchmarkResponder_WriteString(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		r.WriteString(s)
+	}
+}
+
+func BenchmarkResponder_WriteBytes(b *testing.B) {
+	r := NewResponder(ioutil.Discard)
+	p := bytes.Repeat([]byte{'x'}, 64)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r.WriteBytes(p)
+	}
+}
+
+func BenchmarkResponder_WriteStringBulks(b *testing.B) {
+	r := NewResponder(ioutil.Discard)
+	s := strings.Repeat("x", 64)
+	t := []string{s, s, s, s, s}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r.WriteStringBulk(t)
+	}
+}
+
+func BenchmarkResponder_WriteBulk(b *testing.B) {
+	r := NewResponder(ioutil.Discard)
+	p := bytes.Repeat([]byte{'x'}, 64)
+	t := [][]byte{p, nil, p, p, p}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r.WriteBulk(t)
 	}
 }
 

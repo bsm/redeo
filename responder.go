@@ -44,15 +44,54 @@ func (res *Responder) WriteBulkLen(n int) {
 	res.inline(CodeBulkLen, strconv.Itoa(n))
 }
 
+// WriteBulk writes a slice
+func (res *Responder) WriteBulk(bulk [][]byte) {
+	res.WriteBulkLen(len(bulk))
+	for _, b := range bulk {
+		if b == nil {
+			res.WriteNil()
+		} else {
+			res.WriteBytes(b)
+		}
+	}
+}
+
+// WriteStringBulk writes a string slice
+func (res *Responder) WriteStringBulk(bulk []string) {
+	res.WriteBulkLen(len(bulk))
+	for _, b := range bulk {
+		res.WriteString(b)
+	}
+}
+
 // WriteString writes a bulk string
 func (res *Responder) WriteString(s string) {
-	res.WriteBytes([]byte(s))
+	lns := len(s)
+	ssz := strconv.Itoa(lns)
+	lnz := len(ssz)
+
+	p := make([]byte, lns+lnz+5)
+	p[0] = CodeStrLen
+	copy(p[1:], ssz)
+	copy(p[1+lnz:], binCRLF)
+	copy(p[3+lnz:], s)
+	copy(p[3+lnz+lns:], binCRLF)
+	res.write(p)
 }
 
 // WriteBytes writes a bulk string
 func (res *Responder) WriteBytes(b []byte) {
-	res.inline(CodeStrLen, strconv.Itoa(len(b)))
-	res.write(append(b, binCRLF...))
+	lnb := len(b)
+	ssz := strconv.Itoa(lnb)
+	lnz := len(ssz)
+
+	p := make([]byte, lnb+lnz+5)
+	p[0] = CodeStrLen
+	copy(p[1:], ssz)
+	copy(p[1+lnz:], binCRLF)
+	copy(p[3+lnz:], b)
+	copy(p[3+lnz+lnb:], binCRLF)
+	res.write(p)
 }
 
 // WriteString writes an inline string
