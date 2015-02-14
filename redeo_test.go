@@ -2,6 +2,7 @@ package redeo
 
 import (
 	"bytes"
+	"io"
 	"net"
 	"testing"
 	"time"
@@ -18,6 +19,13 @@ func TestSuite(t *testing.T) {
 }
 
 // ------------------------------------------------------------------------
+
+type badWriter struct{ bytes.Buffer }
+
+func (w *badWriter) Write(p []byte) (int, error) {
+	w.Buffer.Write(p)
+	return 0, io.EOF
+}
 
 type mockConn struct {
 	bytes.Buffer

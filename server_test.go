@@ -12,10 +12,20 @@ import (
 
 var _ = Describe("Server", func() {
 	var subject *Server
+
 	var pong = func(out *Responder, _ *Request) error {
 		out.WriteInlineString("PONG")
 		return nil
 	}
+
+	var blank = func(out *Responder, _ *Request) error {
+		return nil
+	}
+
+	var failing = func(out *Responder, _ *Request) error {
+		return io.EOF
+	}
+
 	var echo = func(out *Responder, req *Request) error {
 		if len(req.Args) != 1 {
 			return WrongNumberOfArgs(req.Name)
@@ -79,26 +89,59 @@ var _ = Describe("Server", func() {
 		Expect(subject.commands).To(HaveKey("ping"))
 	})
 
-	It("should apply requests", func() {
-		w := &bytes.Buffer{}
-		subject.HandleFunc("echo", echo)
+	Describe("request handling", func() {
 
-		client := NewClient(&mockConn{})
-		res, err := subject.Apply(&Request{Name: "echo", client: client}, w)
-		Expect(err).To(Equal(WrongNumberOfArgs("echo")))
-		Expect(client.lastCommand).To(Equal("echo"))
+		It("should apply requests", func() {
+			subject.HandleFunc("echo", echo)
 
-		res, err = subject.Apply(&Request{Name: "echo", Args: []string{"SAY HI!"}}, w)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(res.String()).To(Equal("$7\r\nSAY HI!\r\n"))
+			client := NewClient(&mockConn{})
 
-		res, err = subject.Apply(&Request{Name: "echo", Args: []string{strings.Repeat("x", 100000)}}, w)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(res.Len()).To(Equal(100011))
-		Expect(res.String()[:9]).To(Equal("$100000\r\n"))
+			w := &bytes.Buffer{}
+			ok := subject.apply(&Request{Name: "echo", client: client}, w)
+			Expect(ok).To(BeTrue())
+			Expect(w.String()).To(Equal("-ERR wrong number of arguments for 'echo' command\r\n"))
 
-		Expect(client.lastCommand).To(Equal("echo"))
-		Expect(subject.Info().TotalCommands()).To(Equal(int64(3)))
+			w = &bytes.Buffer{}
+			ok = subject.apply(&Request{Name: "echo", Args: []string{"SAY HI!"}}, w)
+			Expect(ok).To(BeTrue())
+			Expect(w.String()).To(Equal("$7\r\nSAY HI!\r\n"))
+
+			w = &bytes.Buffer{}
+			ok = subject.apply(&Request{Name: "echo", Args: []string{strings.Repeat("x", 100000)}}, w)
+			Expect(ok).To(BeTrue())
+			Expect(w.Len()).To(Equal(100011))
+			Expect(w.String()[:9]).To(Equal("$100000\r\n"))
+
+			Expect(client.lastCommand).To(Equal("echo"))
+			Expect(subject.Info().TotalCommands()).To(Equal(int64(3)))
+		})
+
+		It("should write errors if they occur", func() {
+			subject.HandleFunc("failing", failing)
+
+			w := &bytes.Buffer{}
+			ok := subject.apply(&Request{Name: "failing"}, w)
+			Expect(ok).To(BeTrue())
+			Expect(w.String()).To(Equal("-ERR EOF\r\n"))
+		})
+
+		It("should auto-respond with OK when nothing written", func() {
+			subject.HandleFunc("blank", blank)
+
+			w := &bytes.Buffer{}
+			ok := subject.apply(&Request{Name: "blank"}, w)
+			Expect(ok).To(BeTrue())
+			Expect(w.String()).To(Equal("+OK\r\n"))
+		})
+
+		It("should return false on write failures", func() {
+			subject.HandleFunc("blank", blank)
+
+			w := &badWriter{}
+			ok := subject.apply(&Request{Name: "blank"}, w)
+			Expect(ok).To(BeFalse())
+			Expect(w.String()).To(Equal("+OK\r\n"))
+		})
+
 	})
-
 })

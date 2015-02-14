@@ -25,31 +25,37 @@ import (
 	"github.com/bsm/redeo"
 )
 
-func main() {
-	dir := http.Dir("/tmp")
-	srv := redeo.NewServer(nil)
-	srv.HandleFunc("ping", func(out *redeo.Responder, _ *redeo.Request) error {
-		out.WriteInlineString("PONG")
-		return nil
-	})
-	srv.HandleFunc("file", func(out *redeo.Responder, req *redeo.Request) error {
-		if len(req.Args) != 1 {
-			return redeo.WrongNumberOfArgs(req.Name)
-		}
+var root = http.Dir("/tmp")
 
-		file, err := dir.Open(path.Clean(req.Args[0]))
-		if err != nil {
-			return err
-		}
+func pingCmd(out *redeo.Responder, _ *redeo.Request) error {
+	out.WriteInlineString("PONG")
+	return nil
+}
 
-		stat, err := file.Stat()
-		if err != nil {
-			return err
-		}
+func fileCmd(out *redeo.Responder, req *redeo.Request) error {
+	if len(req.Args) != 1 {
+		return req.WrongNumberOfArgs()
+	}
 
-		_, err = out.StreamN(file, stat.Size())
+	file, err := root.Open(path.Clean(req.Args[0]))
+	if err != nil {
 		return err
-	})
+	}
+
+	stat, err := file.Stat()
+	if err != nil {
+		return err
+	}
+
+	out.WriteN(file, stat.Size())
+	return nil
+}
+
+func main() {
+	srv := redeo.NewServer(nil)
+
+	srv.HandleFunc("ping", pingCmd)
+	srv.HandleFunc("file", fileCmd)
 
 	log.Printf("Listening on tcp://%s", srv.Addr())
 	log.Fatal(srv.ListenAndServe())

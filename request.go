@@ -21,6 +21,16 @@ func (r *Request) Client() *Client {
 	return r.client
 }
 
+// WrongNumberOfArgs generates a standard client error
+func (r *Request) WrongNumberOfArgs() ClientError {
+	return WrongNumberOfArgs(r.Name)
+}
+
+// UnknownCommand generates a standard client error
+func (r *Request) UnknownCommand() ClientError {
+	return UnknownCommand(r.Name)
+}
+
 // ParseRequest parses a new request from a buffered connection
 func ParseRequest(rd *bufio.Reader) (*Request, error) {
 	line, err := rd.ReadString('\n')

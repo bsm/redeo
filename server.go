@@ -87,22 +87,6 @@ func (srv *Server) HandleFunc(name string, callback HandlerFunc) {
 	srv.Handle(name, Handler(callback))
 }
 
-// Apply applies a request
-func (srv *Server) Apply(req *Request, w io.Writer) (*Responder, error) {
-	cmd, ok := srv.commands[req.Name]
-	if !ok {
-		return nil, UnknownCommand(req.Name)
-	}
-
-	srv.info.onCommand()
-	if req.client != nil {
-		req.client.trackCommand(req.Name)
-	}
-	res := NewResponder(w)
-	err := cmd.ServeClient(res, req)
-	return res, err
-}
-
 // ListenAndServe starts the server
 func (srv *Server) ListenAndServe() (err error) {
 	errs := make(chan error, 2)
@@ -124,6 +108,33 @@ func (srv *Server) ListenAndServe() (err error) {
 	}
 
 	return <-errs
+}
+
+// ------------------------------------------------------------------------
+
+// Applies a request. Returns true when we should continue the client connection
+func (srv *Server) apply(req *Request, w io.Writer) bool {
+	res := NewResponder(w)
+	cmd, ok := srv.commands[req.Name]
+	if !ok {
+		res.WriteError(UnknownCommand(req.Name))
+		return true
+	}
+
+	srv.info.onCommand()
+	if req.client != nil {
+		req.client.trackCommand(req.Name)
+	}
+
+	err := cmd.ServeClient(res, req)
+	if !res.written {
+		if err != nil {
+			res.WriteError(err)
+		} else {
+			res.WriteOK()
+		}
+	}
+	return res.Valid()
 }
 
 // accepts incoming connections on the Listener lis, creating a
@@ -167,38 +178,16 @@ func (srv *Server) serveClient(client *Client) {
 
 		req, err := ParseRequest(reader)
 		if err != nil {
-			srv.writeError(client.conn, err)
+			NewResponder(client.conn).WriteError(err)
 			return
 		}
 		req.client = client
 
-		res, err := srv.Apply(req, client.conn)
-		if err != nil {
-			srv.writeError(client.conn, err)
-			// Don't disconnect clients on simple command errors to allow pipelining
-			if _, ok := err.(ClientError); ok {
-				continue
-			}
-			return
-		}
-
-		if err = res.flush(); err != nil {
-			return
-		} else if client.quit {
+		ok := srv.apply(req, client.conn)
+		if !ok || client.quit {
 			return
 		}
 	}
-}
-
-// Serve starts a new session, using `conn` as a transport.
-func (srv *Server) writeError(conn net.Conn, err error) {
-	// Don't try to respond on EOFs
-	if err == io.EOF {
-		return
-	}
-	res := NewResponder(conn)
-	res.WriteError(err)
-	res.flush()
 }
 
 // listenUnix starts the unix listener on socket path

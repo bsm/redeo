@@ -13,6 +13,7 @@ import (
 
 var _ = Describe("Responder", func() {
 	var subject *Responder
+	var _ io.Writer = subject
 	var out bytes.Buffer
 
 	BeforeEach(func() {
@@ -20,91 +21,70 @@ var _ = Describe("Responder", func() {
 		subject = NewResponder(&out)
 	})
 
+	It("should mark as failed when a write fails", func() {
+		subject = NewResponder(&badWriter{})
+		Expect(subject.Valid()).To(BeTrue())
+		subject.WriteOK()
+		Expect(subject.Valid()).To(BeFalse())
+	})
+
 	It("should write inline strings", func() {
-		n := subject.WriteInlineString("HELLO")
-		Expect(n).To(Equal(8))
-		Expect(subject.String()).To(Equal("+HELLO\r\n"))
+		subject.WriteInlineString("HELLO")
+		Expect(out.String()).To(Equal("+HELLO\r\n"))
 	})
 
 	It("should write strings", func() {
-		n := subject.WriteString("HELLO")
-		Expect(n).To(Equal(11))
-		Expect(subject.String()).To(Equal("$5\r\nHELLO\r\n"))
+		subject.WriteString("HELLO")
+		Expect(out.String()).To(Equal("$5\r\nHELLO\r\n"))
 	})
 
 	It("should write plain bytes", func() {
-		n := subject.WriteBytes([]byte("HELLO"))
-		Expect(n).To(Equal(11))
-		Expect(subject.String()).To(Equal("$5\r\nHELLO\r\n"))
+		subject.WriteBytes([]byte("HELLO"))
+		Expect(out.String()).To(Equal("$5\r\nHELLO\r\n"))
 	})
 
 	It("should write ints", func() {
-		Expect(subject.WriteInt(345)).To(Equal(6))
-		Expect(subject.WriteZero()).To(Equal(4))
-		Expect(subject.WriteOne()).To(Equal(4))
-		Expect(subject.String()).To(Equal(":345\r\n:0\r\n:1\r\n"))
+		subject.WriteInt(345)
+		subject.WriteZero()
+		subject.WriteOne()
+		Expect(out.String()).To(Equal(":345\r\n:0\r\n:1\r\n"))
 	})
 
 	It("should write error strings", func() {
-		n := subject.WriteErrorString("ERR some error")
-		Expect(n).To(Equal(17))
-		Expect(subject.String()).To(Equal("-ERR some error\r\n"))
+		subject.WriteErrorString("ERR some error")
+		Expect(out.String()).To(Equal("-ERR some error\r\n"))
 	})
 
 	It("should write errors", func() {
-		n := subject.WriteError(ErrInvalidRequest)
-		Expect(n).To(Equal(22))
-		Expect(subject.String()).To(Equal("-ERR invalid request\r\n"))
-
-		n = subject.WriteError(io.EOF)
-		Expect(n).To(Equal(10))
-		Expect(subject.String()[22:]).To(Equal("-ERR EOF\r\n"))
+		subject.WriteError(ErrInvalidRequest)
+		Expect(out.String()).To(Equal("-ERR invalid request\r\n"))
 	})
 
 	It("should write OK", func() {
-		n := subject.WriteOK()
-		Expect(n).To(Equal(5))
-		Expect(subject.String()).To(Equal("+OK\r\n"))
+		subject.WriteOK()
+		Expect(out.String()).To(Equal("+OK\r\n"))
 	})
 
 	It("should write nils", func() {
-		n := subject.WriteNil()
-		Expect(n).To(Equal(5))
-		Expect(subject.String()).To(Equal("$-1\r\n"))
+		subject.WriteNil()
+		Expect(out.String()).To(Equal("$-1\r\n"))
 	})
 
 	It("should write bulk lens", func() {
-		n := subject.WriteBulkLen(4)
-		Expect(n).To(Equal(4))
-		Expect(subject.String()).To(Equal("*4\r\n"))
+		subject.WriteBulkLen(4)
+		Expect(out.String()).To(Equal("*4\r\n"))
 	})
 
 	It("should stream data", func() {
-		rd := strings.NewReader("HELLO STREAM")
-		n, err := subject.StreamN(rd, 9)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(n).To(Equal(int64(15)))
-		Expect(subject.Len()).To(Equal(0))
+		subject.WriteN(strings.NewReader("HELLO STREAM"), 9)
 		Expect(out.String()).To(Equal("$9\r\nHELLO STR\r\n"))
 	})
 
 	It("should allow to write raw data", func() {
-		var _ io.Writer = subject
 		n, err := subject.Write([]byte{'+', 'O', 'K', '\r', '\n'})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(n).To(Equal(5))
-		Expect(subject.Len()).To(Equal(0))
 		Expect(out.String()).To(Equal("+OK\r\n"))
-	})
-
-	It("should flush", func() {
-		Expect(subject.WriteOK()).To(Equal(5))
-		Expect(subject.WriteOK()).To(Equal(5))
-
-		err := subject.flush()
-		Expect(err).NotTo(HaveOccurred())
-
-		Expect(out.String()).To(Equal("+OK\r\n+OK\r\n"))
 	})
 
 })
@@ -138,7 +118,6 @@ func BenchmarkResponder_WriteString(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		r.WriteString(s)
-		r.Truncate(0)
 	}
 }
 
