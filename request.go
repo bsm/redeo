@@ -34,7 +34,7 @@ func ParseRequest(rd *bufio.Reader) (*Request, error) {
 	line = line[:len(line)-2]
 
 	// Return if inline
-	if line[0] != binASTERISK {
+	if line[0] != CodeBulkLen {
 		return &Request{Name: strings.ToLower(line)}, nil
 	}
 
@@ -58,7 +58,7 @@ func parseArgument(rd *bufio.Reader) (string, error) {
 		return "", io.EOF
 	} else if len(line) < 3 {
 		return "", io.EOF
-	} else if line[0] != binDOLLAR {
+	} else if line[0] != CodeStrLen {
 		return "", ErrInvalidRequest
 	}
 

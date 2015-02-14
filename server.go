@@ -88,7 +88,7 @@ func (srv *Server) HandleFunc(name string, callback HandlerFunc) {
 }
 
 // Apply applies a request
-func (srv *Server) Apply(req *Request) (*Responder, error) {
+func (srv *Server) Apply(req *Request, w io.Writer) (*Responder, error) {
 	cmd, ok := srv.commands[req.Name]
 	if !ok {
 		return nil, UnknownCommand(req.Name)
@@ -98,7 +98,7 @@ func (srv *Server) Apply(req *Request) (*Responder, error) {
 	if req.client != nil {
 		req.client.trackCommand(req.Name)
 	}
-	res := NewResponder()
+	res := NewResponder(w)
 	err := cmd.ServeClient(res, req)
 	return res, err
 }
@@ -159,20 +159,20 @@ func (srv *Server) serveClient(client *Client) {
 	}
 
 	// Init request/response loop
-	buffer := bufio.NewReader(client.conn)
+	reader := bufio.NewReader(client.conn)
 	for {
 		if timeout := srv.config.Timeout; timeout > 0 {
 			client.conn.SetDeadline(time.Now().Add(timeout))
 		}
 
-		req, err := ParseRequest(buffer)
+		req, err := ParseRequest(reader)
 		if err != nil {
 			srv.writeError(client.conn, err)
 			return
 		}
 		req.client = client
 
-		res, err := srv.Apply(req)
+		res, err := srv.Apply(req, client.conn)
 		if err != nil {
 			srv.writeError(client.conn, err)
 			// Don't disconnect clients on simple command errors to allow pipelining
@@ -182,7 +182,7 @@ func (srv *Server) serveClient(client *Client) {
 			return
 		}
 
-		if _, err = res.WriteTo(client.conn); err != nil {
+		if err = res.flush(); err != nil {
 			return
 		} else if client.quit {
 			return
@@ -196,9 +196,9 @@ func (srv *Server) writeError(conn net.Conn, err error) {
 	if err == io.EOF {
 		return
 	}
-	res := NewResponder()
+	res := NewResponder(conn)
 	res.WriteError(err)
-	res.WriteTo(conn)
+	res.flush()
 }
 
 // listenUnix starts the unix listener on socket path

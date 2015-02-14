@@ -3,6 +3,7 @@ package redeo
 import (
 	"bytes"
 	"io"
+	"io/ioutil"
 	"strings"
 	"testing"
 
@@ -12,9 +13,11 @@ import (
 
 var _ = Describe("Responder", func() {
 	var subject *Responder
+	var out bytes.Buffer
 
 	BeforeEach(func() {
-		subject = NewResponder()
+		out = bytes.Buffer{}
+		subject = NewResponder(&out)
 	})
 
 	It("should write inline strings", func() {
@@ -76,43 +79,52 @@ var _ = Describe("Responder", func() {
 		Expect(subject.String()).To(Equal("*4\r\n"))
 	})
 
-	It("should implement io.Writer", func() {
-		var _ io.Writer = subject
-		n, err := subject.Write(binOK)
+	It("should stream data", func() {
+		rd := strings.NewReader("HELLO STREAM")
+		n, err := subject.StreamN(rd, 9)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(n).To(Equal(5))
-		Expect(subject.String()).To(Equal("+OK\r\n"))
+		Expect(n).To(Equal(int64(15)))
+		Expect(subject.Len()).To(Equal(0))
+		Expect(out.String()).To(Equal("$9\r\nHELLO STR\r\n"))
 	})
 
-	It("should implement io.WriterTo", func() {
-		var _ io.WriterTo = subject
-		var b bytes.Buffer
-
-		Expect(subject.WriteOK()).To(Equal(5))
-		n, err := subject.WriteTo(&b)
+	It("should allow to write raw data", func() {
+		var _ io.Writer = subject
+		n, err := subject.Write([]byte{'+', 'O', 'K', '\r', '\n'})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(n).To(Equal(int64(5)))
-		Expect(b.String()).To(Equal("+OK\r\n"))
+		Expect(n).To(Equal(5))
+		Expect(subject.Len()).To(Equal(0))
+		Expect(out.String()).To(Equal("+OK\r\n"))
+	})
+
+	It("should flush", func() {
+		Expect(subject.WriteOK()).To(Equal(5))
+		Expect(subject.WriteOK()).To(Equal(5))
+
+		err := subject.flush()
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(out.String()).To(Equal("+OK\r\n+OK\r\n"))
 	})
 
 })
 
 func BenchmarkResponder_WriteOK(b *testing.B) {
-	r := NewResponder()
+	r := NewResponder(ioutil.Discard)
 	for i := 0; i < b.N; i++ {
 		r.WriteOK()
 	}
 }
 
 func BenchmarkResponder_WriteNil(b *testing.B) {
-	r := NewResponder()
+	r := NewResponder(ioutil.Discard)
 	for i := 0; i < b.N; i++ {
 		r.WriteNil()
 	}
 }
 
 func BenchmarkResponder_WriteInlineString(b *testing.B) {
-	r := NewResponder()
+	r := NewResponder(ioutil.Discard)
 	s := strings.Repeat("x", 64)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -121,7 +133,7 @@ func BenchmarkResponder_WriteInlineString(b *testing.B) {
 }
 
 func BenchmarkResponder_WriteString(b *testing.B) {
-	r := NewResponder()
+	r := NewResponder(ioutil.Discard)
 	s := strings.Repeat("x", 64)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -131,7 +143,7 @@ func BenchmarkResponder_WriteString(b *testing.B) {
 }
 
 func BenchmarkResponder_WriteInt(b *testing.B) {
-	r := NewResponder()
+	r := NewResponder(ioutil.Discard)
 	for i := 0; i < b.N; i++ {
 		r.WriteInt(98765)
 	}

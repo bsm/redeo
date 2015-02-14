@@ -1,6 +1,7 @@
 package redeo
 
 import (
+	"bytes"
 	"io"
 	"net"
 	"strings"
@@ -79,17 +80,19 @@ var _ = Describe("Server", func() {
 	})
 
 	It("should apply requests", func() {
+		w := &bytes.Buffer{}
 		subject.HandleFunc("echo", echo)
+
 		client := NewClient(&mockConn{})
-		res, err := subject.Apply(&Request{Name: "echo", client: client})
+		res, err := subject.Apply(&Request{Name: "echo", client: client}, w)
 		Expect(err).To(Equal(WrongNumberOfArgs("echo")))
 		Expect(client.lastCommand).To(Equal("echo"))
 
-		res, err = subject.Apply(&Request{Name: "echo", Args: []string{"SAY HI!"}})
+		res, err = subject.Apply(&Request{Name: "echo", Args: []string{"SAY HI!"}}, w)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(res.String()).To(Equal("$7\r\nSAY HI!\r\n"))
 
-		res, err = subject.Apply(&Request{Name: "echo", Args: []string{strings.Repeat("x", 100000)}})
+		res, err = subject.Apply(&Request{Name: "echo", Args: []string{strings.Repeat("x", 100000)}}, w)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(res.Len()).To(Equal(100011))
 		Expect(res.String()[:9]).To(Equal("$100000\r\n"))
