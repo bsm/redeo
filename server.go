@@ -96,7 +96,7 @@ func (srv *Server) ListenAndServe() (err error) {
 		if err != nil {
 			return
 		}
-		go srv.serve(errs, srv.tcp)
+		go func() { errs <- srv.Serve(srv.tcp) }()
 	}
 
 	if srv.Socket() != "" {
@@ -104,7 +104,7 @@ func (srv *Server) ListenAndServe() (err error) {
 		if err != nil {
 			return err
 		}
-		go srv.serve(errs, srv.unix)
+		go func() { errs <- srv.Serve(srv.unix) }()
 	}
 
 	return <-errs
@@ -137,19 +137,19 @@ func (srv *Server) apply(req *Request, w io.Writer) bool {
 	return res.Valid()
 }
 
-// accepts incoming connections on the Listener lis, creating a
+// Serve accepts incoming connections on a listener, creating a
 // new service goroutine for each.
-func (srv *Server) serve(errs chan error, lis net.Listener) {
+func (srv *Server) Serve(lis net.Listener) error {
 	defer lis.Close()
 
 	for {
 		conn, err := lis.Accept()
 		if err != nil {
-			errs <- err
-			return
+			return err
 		}
 		go srv.serveClient(NewClient(conn))
 	}
+	return nil
 }
 
 // Starts a new session, serving client
