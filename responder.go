@@ -26,7 +26,8 @@ var (
 type Responder struct {
 	w io.Writer
 
-	written, failed bool
+	err     error
+	written bool
 }
 
 // NewResponder creates a new responder instance
@@ -36,7 +37,7 @@ func NewResponder(w io.Writer) *Responder {
 
 // Valid returns true if still accepting writes
 func (res *Responder) Valid() bool {
-	return !res.failed
+	return res.err == nil
 }
 
 // WriteBulkLen writes a bulk length
@@ -76,7 +77,7 @@ func (res *Responder) WriteString(s string) {
 	copy(p[1+lnz:], binCRLF)
 	copy(p[3+lnz:], s)
 	copy(p[3+lnz+lns:], binCRLF)
-	res.write(p)
+	res.Write(p)
 }
 
 // WriteBytes writes a bulk string
@@ -91,7 +92,7 @@ func (res *Responder) WriteBytes(b []byte) {
 	copy(p[1+lnz:], binCRLF)
 	copy(p[3+lnz:], b)
 	copy(p[3+lnz+lnb:], binCRLF)
-	res.write(p)
+	res.Write(p)
 }
 
 // WriteString writes an inline string
@@ -101,12 +102,12 @@ func (res *Responder) WriteInlineString(s string) {
 
 // WriteNil writes a nil value
 func (res *Responder) WriteNil() {
-	res.write(binNIL)
+	res.Write(binNIL)
 }
 
 // WriteOK writes OK
 func (res *Responder) WriteOK() {
-	res.write(binOK)
+	res.Write(binOK)
 }
 
 // WriteInt writes an inline integer
@@ -116,12 +117,12 @@ func (res *Responder) WriteInt(n int) {
 
 // WriteZero writes a 0 integer
 func (res *Responder) WriteZero() {
-	res.write(binZERO)
+	res.Write(binZERO)
 }
 
 // WriteOne writes a 1 integer
 func (res *Responder) WriteOne() {
-	res.write(binONE)
+	res.Write(binONE)
 }
 
 // WriteErrorString writes an error string
@@ -143,39 +144,35 @@ func (res *Responder) WriteN(rd io.Reader, n int64) {
 	o := strconv.FormatInt(n, 10)
 	b := append([]byte{CodeStrLen}, []byte(o)...)
 
-	res.write(append(b, binCRLF...))
-	if !res.failed {
-		if _, err := io.CopyN(res.w, rd, n); err != nil {
-			res.failed = true
-		}
+	res.Write(append(b, binCRLF...))
+	if res.Valid() {
+		io.CopyN(res.w, rd, n)
 	}
-	res.write(binCRLF)
+	res.Write(binCRLF)
 }
 
 // Write allows servers to write raw data straight to the socket without buffering.
 // This is useful e.g. for streaming responses but may break the redis protocol.
 // Be careful with this!
 func (res *Responder) Write(p []byte) (int, error) {
+	if res.err != nil {
+		return 0, res.err
+	}
+
 	res.written = true
-	return res.w.Write(p)
+	n, err := res.w.Write(p)
+	if err != nil {
+		res.err = err
+	}
+	return n, err
 }
 
 // ------------------------------------------------------------------------
-
-func (res *Responder) write(p []byte) {
-	if res.failed {
-		return
-	}
-
-	if _, err := res.Write(p); err != nil {
-		res.failed = true
-	}
-}
 
 func (res *Responder) inline(prefix byte, s string) {
 	p := make([]byte, len(s)+3)
 	p[0] = prefix
 	copy(p[1:], s)
 	copy(p[len(s)+1:], binCRLF)
-	res.write(p)
+	res.Write(p)
 }
