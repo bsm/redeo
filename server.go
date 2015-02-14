@@ -46,44 +46,6 @@ func (srv *Server) Info() *ServerInfo {
 	return srv.info
 }
 
-// ListenAndServe starts the server
-func (srv *Server) ListenAndServe() error {
-	errs := make(chan error)
-
-	if srv.Addr() != "" {
-		lis, err := net.Listen("tcp", srv.Addr())
-		if err != nil {
-			return err
-		}
-		go srv.Serve(errs, lis)
-	}
-
-	if srv.Socket() != "" {
-		lis, err := srv.listenUnix()
-		if err != nil {
-			return err
-		}
-		go srv.Serve(errs, lis)
-	}
-
-	return <-errs
-}
-
-// Serve accepts incoming connections on the Listener lis, creating a
-// new service goroutine for each.
-func (srv *Server) Serve(errs chan error, lis net.Listener) {
-	defer lis.Close()
-
-	for {
-		conn, err := lis.Accept()
-		if err != nil {
-			errs <- err
-			return
-		}
-		go srv.ServeClient(conn)
-	}
-}
-
 // Handle registers a handler for a command
 func (srv *Server) Handle(name string, handler Handler) {
 	srv.mutex.Lock()
@@ -110,8 +72,46 @@ func (srv *Server) Apply(req *Request) (*Responder, error) {
 	return res, err
 }
 
+// ListenAndServe starts the server
+func (srv *Server) ListenAndServe() error {
+	errs := make(chan error)
+
+	if srv.Addr() != "" {
+		lis, err := net.Listen("tcp", srv.Addr())
+		if err != nil {
+			return err
+		}
+		go srv.serve(errs, lis)
+	}
+
+	if srv.Socket() != "" {
+		lis, err := srv.listenUnix()
+		if err != nil {
+			return err
+		}
+		go srv.serve(errs, lis)
+	}
+
+	return <-errs
+}
+
+// accepts incoming connections on the Listener lis, creating a
+// new service goroutine for each.
+func (srv *Server) serve(errs chan error, lis net.Listener) {
+	defer lis.Close()
+
+	for {
+		conn, err := lis.Accept()
+		if err != nil {
+			errs <- err
+			return
+		}
+		go srv.serveClient(conn)
+	}
+}
+
 // Serve starts a new session, using `conn` as a transport.
-func (srv *Server) ServeClient(conn net.Conn) {
+func (srv *Server) serveClient(conn net.Conn) {
 	defer conn.Close()
 
 	if alive := srv.config.TCPKeepAlive; alive > 0 {
