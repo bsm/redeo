@@ -34,9 +34,7 @@ func (r *Request) UnknownCommand() ClientError {
 // ParseRequest parses a new request from a buffered connection
 func ParseRequest(rd *bufio.Reader) (*Request, error) {
 	line, err := rd.ReadString('\n')
-	if err != nil {
-		return nil, io.EOF
-	} else if len(line) < 3 {
+	if err != nil || len(line) < 3 {
 		return nil, io.EOF
 	}
 
@@ -44,7 +42,7 @@ func ParseRequest(rd *bufio.Reader) (*Request, error) {
 	line = line[:len(line)-2]
 
 	// Return if inline
-	if line[0] != CodeBulkLen {
+	if line[0] != codeBulkLen {
 		return &Request{Name: strings.ToLower(line)}, nil
 	}
 
@@ -68,7 +66,7 @@ func parseArgument(rd *bufio.Reader) (string, error) {
 		return "", io.EOF
 	} else if len(line) < 3 {
 		return "", io.EOF
-	} else if line[0] != CodeStrLen {
+	} else if line[0] != codeStrLen {
 		return "", ErrInvalidRequest
 	}
 

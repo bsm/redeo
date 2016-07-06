@@ -118,6 +118,7 @@ func (srv *Server) apply(req *Request, w io.Writer) bool {
 	cmd, ok := srv.commands[req.Name]
 	if !ok {
 		res.WriteError(UnknownCommand(req.Name))
+		_ = res.release()
 		return true
 	}
 
@@ -127,14 +128,14 @@ func (srv *Server) apply(req *Request, w io.Writer) bool {
 	}
 
 	err := cmd.ServeClient(res, req)
-	if !res.written {
+	if res.buf.Len() == 0 {
 		if err != nil {
 			res.WriteError(err)
 		} else {
 			res.WriteOK()
 		}
 	}
-	return res.Valid()
+	return res.release() == nil
 }
 
 // Serve accepts incoming connections on a listener, creating a
