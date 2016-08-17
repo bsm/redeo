@@ -150,7 +150,6 @@ func (srv *Server) Serve(lis net.Listener) error {
 		}
 		go srv.serveClient(NewClient(conn))
 	}
-	return nil
 }
 
 // Starts a new session, serving client

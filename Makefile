@@ -1,20 +1,11 @@
-default: test
+default: vet test
 
-testdeps: deps
-	@go get github.com/onsi/ginkgo
-	@go get github.com/onsi/gomega
+test:
+	go test ./...
 
-test: testdeps
-	@go test ./...
+vet:
+	go vet ./...
 
-.PHONY: test
-
-bench: testdeps
-	@go test --bench=.
-
-.PHONY: bench
-
-deps:
-	@go get
-
+bench:
+	go test ./... -run=NONE --bench=.
 
