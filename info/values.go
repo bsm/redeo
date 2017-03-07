@@ -10,13 +10,13 @@ type Value interface {
 	String() string
 }
 
-// PlainString is the simplest value type
-type PlainString string
+// StringValue is the simplest value type
+type StringValue string
 
-func (v PlainString) String() string { return string(v) }
+func (v StringValue) String() string { return string(v) }
 
-// PlainInt converts a static integer into a value
-func PlainInt(n int) Value { return PlainString(strconv.Itoa(n)) }
+// IntValue converts a static integer into a value
+func IntValue(n int) Value { return StringValue(strconv.Itoa(n)) }
 
 // Callback function
 type Callback func() string

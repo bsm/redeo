@@ -5,16 +5,16 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("PlainString", func() {
+var _ = Describe("StringValue", func() {
 	It("should generate strings", func() {
-		var v Value = PlainString("x")
+		var v Value = StringValue("x")
 		Expect(v.String()).To(Equal("x"))
 	})
 })
 
-var _ = Describe("PlainInt", func() {
+var _ = Describe("IntValue", func() {
 	It("should generate strings", func() {
-		var v Value = PlainInt(12)
+		var v Value = IntValue(12)
 		Expect(v.String()).To(Equal("12"))
 	})
 })

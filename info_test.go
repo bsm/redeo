@@ -1,6 +1,8 @@
 package redeo
 
 import (
+	"time"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -9,33 +11,21 @@ var _ = Describe("ServerInfo", func() {
 	var subject *ServerInfo
 
 	BeforeEach(func() {
-		a, b, c := NewClient(&mockConn{Port: 10001}), NewClient(&mockConn{Port: 10002}), NewClient(&mockConn{Port: 10004})
-		a.trackCommand("get")
-		b.trackCommand("set")
-		c.trackCommand("info")
+		c1 := newClient(&mockConn{Port: 10001})
 
-		clients := newClientRegistry()
-		clients.Put(a)
-		clients.Put(b)
-		clients.Put(c)
-
-		subject = newServerInfo(&Config{
-			Addr:   "127.0.0.1:9736",
-			Socket: "/tmp/redeo.sock",
-		}, clients)
-		for i := 0; i < 5; i++ {
-			subject.onConnect()
-		}
-		for i := 0; i < 12; i++ {
-			subject.onCommand()
-		}
+		subject = newServerInfo()
+		subject.connections.Inc(5)
+		subject.commands.Inc(12)
+		subject.clients.Add(c1)
+		subject.clients.Add(newClient(&mockConn{Port: 10002}))
+		subject.clients.Add(newClient(&mockConn{Port: 10004}))
+		subject.clients.Cmd(c1.ID(), "get")
 	})
 
 	It("should generate info string", func() {
 		str := subject.String()
 		Expect(str).To(ContainSubstring("# Server\n"))
 		Expect(str).To(MatchRegexp(`process_id:\d+\n`))
-		Expect(str).To(ContainSubstring("tcp_port:9736\nunix_socket:/tmp/redeo.sock\n"))
 		Expect(str).To(MatchRegexp(`uptime_in_seconds:\d+\n`))
 		Expect(str).To(MatchRegexp(`uptime_in_days:\d+\n`))
 
@@ -44,14 +34,21 @@ var _ = Describe("ServerInfo", func() {
 	})
 
 	It("should retrieve a list of clients", func() {
-		Expect(subject.Clients()).To(HaveLen(3))
+		stats := subject.ClientInfo()
+		Expect(stats).To(HaveLen(3))
+		Expect(stats[0].String()).To(MatchRegexp(`id=\d+ addr=1\.2\.3\.4\:10001 age=\d+ idle=\d+ cmd=get`))
 	})
 
-	It("should generate client string", func() {
-		str := subject.ClientsString()
-		Expect(str).To(MatchRegexp(`id=\d+ addr=1\.2\.3\.4\:10001 age=\d+ idle=\d+ cmd=get`))
-		Expect(str).To(MatchRegexp(`id=\d+ addr=1\.2\.3\.4\:10002 age=\d+ idle=\d+ cmd=set`))
-		Expect(str).To(MatchRegexp(`id=\d+ addr=1\.2\.3\.4\:10004 age=\d+ idle=\d+ cmd=info`))
+})
+
+var _ = Describe("ClientInfo", func() {
+
+	It("should init", func() {
+		c := newClient(&mockConn{Port: 10001})
+		c.id = 12
+
+		info := newClientInfo(c, time.Now().Add(-3*time.Second))
+		Expect(info.String()).To(Equal(`id=12 addr=1.2.3.4:10001 age=3 idle=3 cmd=`))
 	})
 
 })

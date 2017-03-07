@@ -1,11 +1,14 @@
 package redeo
 
 import (
-	"bytes"
-	"io"
+	"encoding/json"
+	"fmt"
 	"net"
 	"strings"
+	"testing"
+	"time"
 
+	"github.com/bsm/redeo/resp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -13,135 +16,319 @@ import (
 var _ = Describe("Server", func() {
 	var subject *Server
 
-	var pong = func(out *Responder, _ *Request) error {
-		out.WriteInlineString("PONG")
-		return nil
-	}
+	var (
+		pong = func(w resp.ResponseWriter, _ *resp.Command) { w.AppendInlineString("PONG") }
 
-	var blank = func(out *Responder, _ *Request) error {
-		return nil
-	}
-
-	var failing = func(out *Responder, _ *Request) error {
-		return io.EOF
-	}
-
-	var echo = func(out *Responder, req *Request) error {
-		if len(req.Args) != 1 {
-			return WrongNumberOfArgs(req.Name)
+		echo = func(w resp.ResponseWriter, cmd *resp.Command) {
+			if cmd.ArgN() != 1 {
+				w.AppendError(WrongNumberOfArgs(cmd.Name))
+				return
+			}
+			w.AppendBulk(cmd.Arg(0))
 		}
-		out.WriteString(req.Args[0])
-		return nil
+
+		flush = func(w resp.ResponseWriter, _ *resp.Command) {
+			w.AppendOK()
+			w.Flush()
+		}
+
+		stream = func(w resp.ResponseWriter, cmd *resp.CommandStream) {
+			if cmd.ArgN() != 1 {
+				w.AppendError(WrongNumberOfArgs(cmd.Name))
+				return
+			}
+
+			rd, err := cmd.NextArg()
+			if err != nil {
+				w.AppendErrorf("ERR unable to parse argument: %s", err.Error())
+				return
+			}
+
+			data := struct {
+				N int
+				S string
+			}{}
+
+			if err := json.NewDecoder(rd).Decode(&data); err != nil {
+				w.AppendErrorf("ERR unable to decode argument: %s", err.Error())
+				return
+			}
+
+			w.AppendInlineString(fmt.Sprintf("%s.%d", data.S, data.N))
+			w.AppendOK()
+		}
+	)
+
+	var runServer = func(srv *Server, fn func(net.Conn, *resp.RequestWriter, resp.ResponseReader)) {
+		lis, err := net.Listen("tcp", "127.0.0.1:0")
+		Expect(err).NotTo(HaveOccurred())
+		defer lis.Close()
+
+		// start listening
+		go srv.Serve(lis)
+
+		// connect client
+		cn, err := net.Dial("tcp", lis.Addr().String())
+		Expect(err).NotTo(HaveOccurred())
+		defer cn.Close()
+
+		fn(cn, resp.NewRequestWriter(cn), resp.NewResponseReader(cn))
 	}
 
 	BeforeEach(func() {
-		subject = NewServer(nil)
-	})
-
-	It("should fallback on default config", func() {
-		Expect(subject.config).To(Equal(DefaultConfig))
-	})
-
-	It("should listen/serve/close", func() {
+		subject = NewServer(&Config{
+			Timeout: 100 * time.Millisecond,
+		})
 		subject.HandleFunc("pInG", pong)
-
-		// Listen to connections
-		ec := make(chan error, 1)
-		go func() {
-			ec <- subject.ListenAndServe()
-		}()
-
-		// Connect client
-		var clnt net.Conn
-		Eventually(func() (err error) {
-			clnt, err = net.Dial("tcp", "127.0.0.1:9736")
-			return err
-		}).ShouldNot(HaveOccurred())
-		defer clnt.Close()
-
-		// Ping
-		pong := make([]byte, 10)
-		_, err := clnt.Write([]byte("PING\r\n"))
-		Expect(err).NotTo(HaveOccurred())
-		n, err := clnt.Read(pong)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(string(pong[:n])).To(Equal("+PONG\r\n"))
-
-		// Close
-		err = subject.Close()
-		Expect(err).NotTo(HaveOccurred())
-
-		// Expect to exit
-		err = <-ec
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("closed"))
-
-		// Ping again
-		_, err = clnt.Write([]byte("PING\r\n"))
-		Expect(err).NotTo(HaveOccurred())
-		_, err = clnt.Read(pong)
-		Expect(err).To(Equal(io.EOF))
+		subject.HandleFunc("echo", echo)
+		subject.HandleFunc("flush", flush)
+		subject.HandleStreamFunc("stream", stream)
 	})
 
 	It("should register handlers", func() {
-		subject.HandleFunc("pInG", pong)
-		Expect(subject.commands).To(HaveLen(1))
-		Expect(subject.commands).To(HaveKey("ping"))
+		Expect(subject.cmds).To(HaveLen(4))
+		Expect(subject.cmds).To(HaveKey("ping"))
 	})
 
-	Describe("request handling", func() {
+	It("should serve", func() {
+		runServer(subject, func(cn net.Conn, cw *resp.RequestWriter, cr resp.ResponseReader) {
+			cw.WriteCmd("PING")
+			Expect(cw.Flush()).To(Succeed())
 
-		It("should apply requests", func() {
-			subject.HandleFunc("echo", echo)
+			s, err := cr.ReadInlineString()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(s).To(Equal("PONG"))
 
-			client := NewClient(&mockConn{})
+			info := subject.Info()
+			Expect(info.NumClients()).To(Equal(1))
+			Expect(info.TotalCommands()).To(Equal(int64(1)))
+			Expect(info.TotalConnections()).To(Equal(int64(1)))
+			Expect(info.ClientInfo()[0].LastCmd).To(Equal("ping"))
 
-			w := &bytes.Buffer{}
-			ok := subject.apply(&Request{Name: "echo", client: client}, w)
-			Expect(ok).To(BeTrue())
-			Expect(w.String()).To(Equal("-ERR wrong number of arguments for 'echo' command\r\n"))
+			cw.WriteCmdString("echo", strings.Repeat("x", 10000))
+			Expect(cw.Flush()).To(Succeed())
 
-			w = &bytes.Buffer{}
-			ok = subject.apply(&Request{Name: "echo", Args: []string{"SAY HI!"}}, w)
-			Expect(ok).To(BeTrue())
-			Expect(w.String()).To(Equal("$7\r\nSAY HI!\r\n"))
+			s, err = cr.ReadBulkString()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(s)).To(Equal(10000))
 
-			w = &bytes.Buffer{}
-			ok = subject.apply(&Request{Name: "echo", Args: []string{strings.Repeat("x", 100000)}}, w)
-			Expect(ok).To(BeTrue())
-			Expect(w.Len()).To(Equal(100011))
-			Expect(w.String()[:9]).To(Equal("$100000\r\n"))
-
-			Expect(client.lastCommand).To(Equal("echo"))
-			Expect(subject.Info().TotalCommands()).To(Equal(int64(3)))
+			info = subject.Info()
+			Expect(info.NumClients()).To(Equal(1))
+			Expect(info.TotalCommands()).To(Equal(int64(2)))
+			Expect(info.TotalConnections()).To(Equal(int64(1)))
+			Expect(info.ClientInfo()[0].LastCmd).To(Equal("echo"))
 		})
-
-		It("should write errors if they occur", func() {
-			subject.HandleFunc("failing", failing)
-
-			w := &bytes.Buffer{}
-			ok := subject.apply(&Request{Name: "failing"}, w)
-			Expect(ok).To(BeTrue())
-			Expect(w.String()).To(Equal("-ERR EOF\r\n"))
-		})
-
-		It("should auto-respond with OK when nothing written", func() {
-			subject.HandleFunc("blank", blank)
-
-			w := &bytes.Buffer{}
-			ok := subject.apply(&Request{Name: "blank"}, w)
-			Expect(ok).To(BeTrue())
-			Expect(w.String()).To(Equal("+OK\r\n"))
-		})
-
-		It("should return false on write failures", func() {
-			subject.HandleFunc("blank", blank)
-
-			w := &badWriter{}
-			ok := subject.apply(&Request{Name: "blank"}, w)
-			Expect(ok).To(BeFalse())
-			Expect(w.String()).To(Equal("+OK\r\n"))
-		})
-
 	})
+
+	It("should serve streams", func() {
+		runServer(subject, func(cn net.Conn, cw *resp.RequestWriter, cr resp.ResponseReader) {
+			cw.WriteCmdString("STREAM", `{"n":8,"s":"hello"}`)
+			Expect(cw.Flush()).To(Succeed())
+
+			s, err := cr.ReadInlineString()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(s).To(Equal("hello.8"))
+		})
+	})
+
+	It("should handle pipelines", func() {
+		runServer(subject, func(cn net.Conn, cw *resp.RequestWriter, cr resp.ResponseReader) {
+			cw.WriteCmd("PING")
+			cw.WriteCmd("PING")
+			cw.WriteCmd("PING")
+			Expect(cw.Flush()).To(Succeed())
+
+			for i := 0; i < 3; i++ {
+				s, err := cr.ReadInlineString()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(s).To(Equal("PONG"))
+			}
+		})
+	})
+
+	It("should handle invalid commands", func() {
+		runServer(subject, func(cn net.Conn, cw *resp.RequestWriter, cr resp.ResponseReader) {
+			cw.WriteCmd("nOOp")
+			Expect(cw.Flush()).To(Succeed())
+
+			s, err := cr.ReadError()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(s).To(Equal("ERR unknown command 'nOOp'"))
+
+			// connection should still be open
+			cw.WriteCmd("PING")
+			Expect(cw.Flush()).To(Succeed())
+			s, err = cr.ReadInlineString()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(s).To(Equal("PONG"))
+		})
+	})
+
+	It("should handle invalid commands in pipelines", func() {
+		runServer(subject, func(cn net.Conn, cw *resp.RequestWriter, cr resp.ResponseReader) {
+			cw.WriteCmd("PING")
+			cw.WriteCmd("BAD")
+			cw.WriteCmd("PING")
+			Expect(cw.Flush()).To(Succeed())
+
+			s, err := cr.ReadInlineString()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(s).To(Equal("PONG"))
+
+			s, err = cr.ReadError()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(s).To(Equal("ERR unknown command 'BAD'"))
+
+			s, err = cr.ReadInlineString()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(s).To(Equal("PONG"))
+		})
+	})
+
+	It("should handle client errors", func() {
+		runServer(subject, func(cn net.Conn, cw *resp.RequestWriter, cr resp.ResponseReader) {
+			cw.WriteCmd("ECHO")
+			Expect(cw.Flush()).To(Succeed())
+
+			s, err := cr.ReadError()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(s).To(Equal("ERR wrong number of arguments for 'ECHO' command"))
+
+			// connection should still be open
+			cw.WriteCmd("PING")
+			Expect(cw.Flush()).To(Succeed())
+			s, err = cr.ReadInlineString()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(s).To(Equal("PONG"))
+		})
+	})
+
+	It("should handle client errors in pipelines", func() {
+		runServer(subject, func(cn net.Conn, cw *resp.RequestWriter, cr resp.ResponseReader) {
+			cw.WriteCmd("PING")
+			cw.WriteCmd("echo")
+			cw.WriteCmd("PING")
+			Expect(cw.Flush()).To(Succeed())
+
+			s, err := cr.ReadInlineString()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(s).To(Equal("PONG"))
+
+			s, err = cr.ReadError()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(s).To(Equal("ERR wrong number of arguments for 'echo' command"))
+
+			s, err = cr.ReadInlineString()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(s).To(Equal("PONG"))
+		})
+	})
+
+	It("should handle protocol errors", func() {
+		runServer(subject, func(cn net.Conn, cw *resp.RequestWriter, cr resp.ResponseReader) {
+			_, err := cn.Write([]byte("*x\r\n"))
+			Expect(err).NotTo(HaveOccurred())
+
+			x, _ := cr.PeekType()
+			Expect(x).To(Equal(resp.TypeError))
+
+			s, err := cr.ReadError()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(s).To(Equal("ERR Protocol error: invalid multibulk length"))
+
+			// connection should still be open
+			cw.WriteCmd("PING")
+			Expect(cw.Flush()).To(Succeed())
+			s, err = cr.ReadInlineString()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(s).To(Equal("PONG"))
+		})
+	})
+
+	It("should handle protocol errors in pipelines", func() {
+		runServer(subject, func(cn net.Conn, cw *resp.RequestWriter, cr resp.ResponseReader) {
+			_, err := cn.Write([]byte("*1\r\n$4\r\nPING\r\n*1\r\n$x\r\nPING\r\n*1\r\n$4\r\nPING\r\n"))
+			Expect(err).NotTo(HaveOccurred())
+
+			s, err := cr.ReadInlineString()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(s).To(Equal("PONG"))
+
+			s, err = cr.ReadError()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(s).To(Equal("ERR Protocol error: invalid bulk length"))
+
+			s, err = cr.ReadInlineString()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(s).To(Equal("PONG"))
+		})
+	})
+
+	It("should close connections on EOF errors", func() {
+		runServer(subject, func(cn net.Conn, cw *resp.RequestWriter, cr resp.ResponseReader) {
+			_, err := cn.Write([]byte("*1\r\n$4\r\nPI"))
+			Expect(err).NotTo(HaveOccurred())
+
+			// connection should be closed
+			_, err = cr.PeekType()
+			Expect(err).To(MatchError("EOF"))
+		})
+	})
+
 })
+
+// --------------------------------------------------------------------
+
+func BenchmarkServer_inline(b *testing.B) {
+	benchmarkServer(b, []byte(
+		"ECHO HELLO\r\n"+
+			"ECHO CRUEL\r\n"+
+			"ECHO WORLD\r\n",
+	), 24)
+}
+
+func BenchmarkServer_bulk(b *testing.B) {
+	benchmarkServer(b, []byte(
+		"*2\r\n$4\r\nECHO\r\n$5\r\nHELLO\r\n"+
+			"*2\r\n$4\r\nECHO\r\n$5\r\nCRUEL\r\n"+
+			"*2\r\n$4\r\nECHO\r\n$5\r\nWORLD\r\n",
+	), 24)
+}
+
+func benchmarkServer(b *testing.B, pipe []byte, expN int) {
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer lis.Close()
+
+	srv := NewServer(nil)
+	srv.HandleFunc("echo", func(w resp.ResponseWriter, cmd *resp.Command) {
+		if cmd.ArgN() != 1 {
+			w.AppendError(WrongNumberOfArgs(cmd.Name))
+		}
+		w.AppendInline(cmd.Arg(0))
+	})
+
+	go srv.Serve(lis)
+
+	conn, err := net.Dial("tcp", lis.Addr().String())
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer conn.Close()
+
+	buf := make([]byte, 1024)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := conn.Write(pipe); err != nil {
+			b.Fatal(err)
+		}
+		if n, err := conn.Read(buf); err != nil {
+			b.Fatal(err)
+		} else if n != expN {
+			b.Fatalf("expected response to be %d bytes long, not %d", expN, n)
+		}
+	}
+}
