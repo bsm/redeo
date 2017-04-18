@@ -179,6 +179,12 @@ func (srv *Server) serveClient(client *Client) {
 		req, err := ParseRequest(reader)
 		if err != nil {
 			NewResponder(client.conn).WriteError(err)
+			if err == io.EOF {
+				if cmd, ok := srv.commands["closed"]; ok && cmd != nil {
+					req = &Request{client: client}
+					cmd.ServeClient(nil, req)
+				}
+			}
 			return
 		}
 		req.client = client
