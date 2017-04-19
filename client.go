@@ -15,6 +15,8 @@ var (
 	writerPool sync.Pool
 )
 
+type ctxKeyClient struct{}
+
 // Client contains information about a client connection
 type Client struct {
 	id uint64
@@ -34,6 +36,17 @@ func newClient(cn net.Conn) *Client {
 	c := new(Client)
 	c.reset(cn)
 	return c
+}
+
+// GetClient retrieves the client from a the context.
+// This function may return nil if a client is not set.
+func GetClient(ctx context.Context) *Client {
+	if ctx != nil {
+		if c, ok := ctx.Value(ctxKeyClient{}).(*Client); ok {
+			return c
+		}
+	}
+	return nil
 }
 
 // ID return the unique client id
@@ -61,6 +74,22 @@ func (c *Client) RemoteAddr() net.Addr {
 // to the client
 func (c *Client) Close() {
 	c.closed = true
+}
+
+func (c *Client) readCmd(cmd *resp.Command) (*resp.Command, error) {
+	var err error
+	if cmd, err = c.rd.ReadCmd(cmd); err == nil {
+		cmd.SetContext(context.WithValue(cmd.Context(), ctxKeyClient{}, c))
+	}
+	return cmd, err
+}
+
+func (c *Client) streamCmd(cmd *resp.CommandStream) (*resp.CommandStream, error) {
+	var err error
+	if cmd, err = c.rd.StreamCmd(cmd); err == nil {
+		cmd.SetContext(context.WithValue(cmd.Context(), ctxKeyClient{}, c))
+	}
+	return cmd, err
 }
 
 func (c *Client) pipeline(fn func(string) error) error {

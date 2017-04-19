@@ -32,6 +32,15 @@ var _ = Describe("Server", func() {
 			w.Flush()
 		}
 
+		quit = func(w resp.ResponseWriter, cmd *resp.Command) {
+			if client := GetClient(cmd.Context()); client != nil {
+				client.Close()
+				w.AppendOK()
+				return
+			}
+			w.AppendNil()
+		}
+
 		stream = func(w resp.ResponseWriter, cmd *resp.CommandStream) {
 			if cmd.ArgN() != 1 {
 				w.AppendError(WrongNumberOfArgs(cmd.Name))
@@ -82,11 +91,12 @@ var _ = Describe("Server", func() {
 		subject.HandleFunc("pInG", pong)
 		subject.HandleFunc("echo", echo)
 		subject.HandleFunc("flush", flush)
+		subject.HandleFunc("quit", quit)
 		subject.HandleStreamFunc("stream", stream)
 	})
 
 	It("should register handlers", func() {
-		Expect(subject.cmds).To(HaveLen(4))
+		Expect(subject.cmds).To(HaveLen(5))
 		Expect(subject.cmds).To(HaveKey("ping"))
 	})
 
@@ -268,6 +278,24 @@ var _ = Describe("Server", func() {
 		runServer(subject, func(cn net.Conn, cw *resp.RequestWriter, cr resp.ResponseReader) {
 			_, err := cn.Write([]byte("*1\r\n$4\r\nPI"))
 			Expect(err).NotTo(HaveOccurred())
+
+			// connection should be closed
+			_, err = cr.PeekType()
+			Expect(err).To(MatchError("EOF"))
+		})
+	})
+
+	It("should allow user to close connections", func() {
+		runServer(subject, func(cn net.Conn, cw *resp.RequestWriter, cr resp.ResponseReader) {
+			cw.WriteCmd("QUIT")
+			Expect(cw.Flush()).To(Succeed())
+
+			s, err := cr.ReadInlineString()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(s).To(Equal("OK"))
+
+			cw.WriteCmd("PING")
+			Expect(cw.Flush()).To(Succeed())
 
 			// connection should be closed
 			_, err = cr.PeekType()

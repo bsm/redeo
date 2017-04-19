@@ -29,6 +29,18 @@ func ExampleServer() {
 	srv.Serve(lis)
 }
 
+func ExampleClient() {
+	srv := redeo.NewServer(nil)
+	srv.HandleFunc("myip", func(w resp.ResponseWriter, cmd *resp.Command) {
+		client := redeo.GetClient(cmd.Context())
+		if client == nil {
+			w.AppendNil()
+			return
+		}
+		w.AppendInlineString(client.RemoteAddr().String())
+	})
+}
+
 func ExamplePing() {
 	srv := redeo.NewServer(nil)
 	srv.Handle("ping", redeo.Ping())

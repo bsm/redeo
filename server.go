@@ -135,13 +135,13 @@ func (srv *Server) perform(c *Client, name string) (err error) {
 
 	switch handler := h.(type) {
 	case Handler:
-		if c.cmd, err = c.rd.ReadCmd(c.cmd); err != nil {
+		if c.cmd, err = c.readCmd(c.cmd); err != nil {
 			return
 		}
 		handler.ServeRedeo(c.wr, c.cmd)
 
 	case StreamHandler:
-		if c.scmd, err = c.rd.StreamCmd(c.scmd); err != nil {
+		if c.scmd, err = c.streamCmd(c.scmd); err != nil {
 			return
 		}
 		defer c.scmd.Discard()
