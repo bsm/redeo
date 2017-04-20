@@ -32,6 +32,7 @@ func main() {
 
 	// Flush pipeline to socket
 	if err := cn.Flush(); err != nil {
+		cn.MarkFailed()
 		panic(err)
 	}
 

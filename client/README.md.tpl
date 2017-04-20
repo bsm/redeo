@@ -14,5 +14,5 @@ import (
   "github.com/bsm/redeo/client"
 )
 
-func main() {{ "ExampleClient" | code }}
+func main() {{ "ExamplePool" | code }}
 ```
