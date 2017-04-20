@@ -15,13 +15,13 @@ import (
 )
 
 func main() {
-	client, _ := client.New(&pool.Options{
+	pool, _ := client.New(&pool.Options{
 		InitialSize: 1,
 	}, nil)
-	defer client.Close()
+	defer pool.Close()
 
-	cn, _ := client.Get()
-	defer client.Put(cn)
+	cn, _ := pool.Get()
+	defer pool.Put(cn)
 
 	// Build pipeline
 	cn.WriteCmdString("PING")
