@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"sync"
 )
 
 type bufioR struct {
@@ -422,51 +423,67 @@ func (ln bufioLn) ParseSize(prefix byte, fallback error) (int64, error) {
 type bufioW struct {
 	wr  io.Writer
 	buf []byte
+	mu  sync.Mutex
 }
 
 // Buffered returns the number of buffered bytes
 func (b *bufioW) Buffered() int {
-	return len(b.buf)
+	b.mu.Lock()
+	n := len(b.buf)
+	b.mu.Unlock()
+	return n
 }
 
 // AppendArrayLen appends an array header to the output buffer
 func (b *bufioW) AppendArrayLen(n int) {
+	b.mu.Lock()
 	b.appendSize('*', int64(n))
+	b.mu.Unlock()
 }
 
 // AppendBulk appends bulk bytes to the output buffer
 func (b *bufioW) AppendBulk(p []byte) {
+	b.mu.Lock()
 	b.appendSize('$', int64(len(p)))
 	b.buf = append(b.buf, p...)
 	b.buf = append(b.buf, binCRLF...)
+	b.mu.Unlock()
 }
 
 // AppendBulkString appends a bulk string to the output buffer
 func (b *bufioW) AppendBulkString(s string) {
+	b.mu.Lock()
 	b.appendSize('$', int64(len(s)))
 	b.buf = append(b.buf, s...)
 	b.buf = append(b.buf, binCRLF...)
+	b.mu.Unlock()
 }
 
 // AppendInline appends inline bytes to the output buffer
 func (b *bufioW) AppendInline(p []byte) {
+	b.mu.Lock()
 	b.buf = append(b.buf, '+')
 	b.buf = append(b.buf, p...)
 	b.buf = append(b.buf, binCRLF...)
+	b.mu.Unlock()
 }
 
 // AppendInlineString appends an inline string to the output buffer
 func (b *bufioW) AppendInlineString(s string) {
+	b.mu.Lock()
 	b.buf = append(b.buf, '+')
 	b.buf = append(b.buf, s...)
 	b.buf = append(b.buf, binCRLF...)
+	b.mu.Unlock()
 }
 
 // AppendError appends an error message to the output buffer
 func (b *bufioW) AppendError(msg string) {
+	b.mu.Lock()
 	b.buf = append(b.buf, '-')
 	b.buf = append(b.buf, msg...)
 	b.buf = append(b.buf, binCRLF...)
+	b.mu.Unlock()
 }
 
 // AppendErrorf appends an error message to the output buffer
@@ -476,6 +493,7 @@ func (b *bufioW) AppendErrorf(pattern string, args ...interface{}) {
 
 // AppendInt appends a numeric response to the output buffer
 func (b *bufioW) AppendInt(n int64) {
+	b.mu.Lock()
 	switch n {
 	case 0:
 		b.buf = append(b.buf, binZERO...)
@@ -486,21 +504,29 @@ func (b *bufioW) AppendInt(n int64) {
 		b.buf = append(b.buf, strconv.FormatInt(n, 10)...)
 		b.buf = append(b.buf, binCRLF...)
 	}
+	b.mu.Unlock()
 }
 
 // AppendNil appends a nil-value to the output buffer
 func (b *bufioW) AppendNil() {
+	b.mu.Lock()
 	b.buf = append(b.buf, binNIL...)
+	b.mu.Unlock()
 }
 
 // AppendOK appends "OK" to the output buffer
 func (b *bufioW) AppendOK() {
+	b.mu.Lock()
 	b.buf = append(b.buf, binOK...)
+	b.mu.Unlock()
 }
 
 // CopyBulk flushes the existing buffer and read n bytes from the reader directly to
 // the client connection.
 func (b *bufioW) CopyBulk(src io.Reader, n int64) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	b.appendSize('$', n)
 	if start := len(b.buf); int64(cap(b.buf)-start) >= n+2 {
 		b.buf = b.buf[:start+int(n)]
@@ -512,7 +538,7 @@ func (b *bufioW) CopyBulk(src io.Reader, n int64) error {
 		return nil
 	}
 
-	if err := b.Flush(); err != nil {
+	if err := b.flush(); err != nil {
 		return err
 	}
 	b.buf = b.buf[:cap(b.buf)]
@@ -528,6 +554,18 @@ func (b *bufioW) CopyBulk(src io.Reader, n int64) error {
 
 // Flush flushes pending buffer
 func (b *bufioW) Flush() error {
+	b.mu.Lock()
+	err := b.flush()
+	b.mu.Unlock()
+	return err
+}
+
+// Reset resets the writer with an new interface
+func (b *bufioW) Reset(w io.Writer) {
+	b.reset(b.buf, w)
+}
+
+func (b *bufioW) flush() error {
 	if len(b.buf) == 0 {
 		return nil
 	}
@@ -538,11 +576,6 @@ func (b *bufioW) Flush() error {
 
 	b.buf = b.buf[:0]
 	return nil
-}
-
-// Reset resets the writer with an new interface
-func (b *bufioW) Reset(w io.Writer) {
-	b.reset(b.buf, w)
 }
 
 func (b *bufioW) appendSize(c byte, n int64) {
