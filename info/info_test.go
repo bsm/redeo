@@ -12,10 +12,10 @@ var _ = Describe("Registry", func() {
 
 	BeforeEach(func() {
 		subject = New()
-		subject.Section("Server").Register("version", PlainString("1.0.1"))
-		subject.Section("Server").Register("date", PlainString("2014-11-11"))
-		subject.Section("Clients").Register("count", PlainString("17"))
-		subject.Section("Clients").Register("total", PlainString("123456"))
+		subject.Section("Server").Register("version", StringValue("1.0.1"))
+		subject.Section("Server").Register("date", StringValue("2014-11-11"))
+		subject.Section("Clients").Register("count", StringValue("17"))
+		subject.Section("Clients").Register("total", StringValue("123456"))
 		subject.Section("Empty")
 	})
 
@@ -32,10 +32,6 @@ var _ = Describe("Registry", func() {
 	})
 
 })
-
-/*************************************************************************
- * GINKGO TEST HOOK
- *************************************************************************/
 
 func TestSuite(t *testing.T) {
 	RegisterFailHandler(Fail)

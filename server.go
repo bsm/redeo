@@ -1,201 +1,157 @@
 package redeo
 
 import (
-	"bufio"
-	"io"
 	"net"
-	"os"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/bsm/redeo/resp"
 )
 
 // Server configuration
 type Server struct {
-	config   *Config
-	info     *ServerInfo
-	commands map[string]Handler
+	config *Config
+	info   *ServerInfo
 
-	tcp, unix net.Listener
-	clients   *clients
+	cmds map[string]interface{}
+	mu   sync.RWMutex
 }
 
 // NewServer creates a new server instance
 func NewServer(config *Config) *Server {
 	if config == nil {
-		config = DefaultConfig
+		config = new(Config)
 	}
 
-	clients := newClientRegistry()
 	return &Server{
-		config:   config,
-		clients:  clients,
-		info:     newServerInfo(config, clients),
-		commands: make(map[string]Handler),
+		config: config,
+		info:   newServerInfo(),
+		cmds:   make(map[string]interface{}),
 	}
-}
-
-// Addr returns the server TCP address
-func (srv *Server) Addr() string {
-	return srv.config.Addr
-}
-
-// Socket returns the server UNIX socket address
-func (srv *Server) Socket() string {
-	return srv.config.Socket
 }
 
 // Info returns the server info registry
-func (srv *Server) Info() *ServerInfo {
-	return srv.info
-}
-
-// Close shuts down the server and closes all connections
-func (srv *Server) Close() (err error) {
-
-	// Stop new TCP connections
-	if srv.tcp != nil {
-		if e := srv.tcp.Close(); e != nil {
-			err = e
-		}
-		srv.tcp = nil
-	}
-
-	// Stop new Unix socket connections
-	if srv.unix != nil {
-		if e := srv.unix.Close(); e != nil {
-			err = e
-		}
-		srv.unix = nil
-	}
-
-	// Terminate all clients
-	if e := srv.clients.Clear(); err != nil {
-		err = e
-	}
-
-	return
-}
+func (srv *Server) Info() *ServerInfo { return srv.info }
 
 // Handle registers a handler for a command.
-// Not thread-safe, don't call from multiple goroutines
-func (srv *Server) Handle(name string, handler Handler) {
-	srv.commands[strings.ToLower(name)] = handler
+func (srv *Server) Handle(name string, h Handler) {
+	srv.mu.Lock()
+	srv.cmds[strings.ToLower(name)] = h
+	srv.mu.Unlock()
 }
 
-// HandleFunc registers a handler callback for a command
-func (srv *Server) HandleFunc(name string, callback HandlerFunc) {
-	srv.Handle(name, Handler(callback))
+// HandleFunc registers a handler func for a command
+func (srv *Server) HandleFunc(name string, fn HandlerFunc) {
+	srv.Handle(name, Handler(fn))
 }
 
-// ListenAndServe starts the server
-func (srv *Server) ListenAndServe() (err error) {
-	errs := make(chan error, 2)
-
-	if srv.Addr() != "" {
-		srv.tcp, err = net.Listen("tcp", srv.Addr())
-		if err != nil {
-			return
-		}
-		go func() { errs <- srv.Serve(srv.tcp) }()
-	}
-
-	if srv.Socket() != "" {
-		srv.unix, err = srv.listenUnix()
-		if err != nil {
-			return err
-		}
-		go func() { errs <- srv.Serve(srv.unix) }()
-	}
-
-	return <-errs
+// HandleStream registers a handler for a streaming command.
+func (srv *Server) HandleStream(name string, h StreamHandler) {
+	srv.mu.Lock()
+	srv.cmds[strings.ToLower(name)] = h
+	srv.mu.Unlock()
 }
 
-// ------------------------------------------------------------------------
-
-// Applies a request. Returns true when we should continue the client connection
-func (srv *Server) apply(req *Request, w io.Writer) bool {
-	res := NewResponder(w)
-	cmd, ok := srv.commands[req.Name]
-	if !ok {
-		res.WriteError(UnknownCommand(req.Name))
-		_ = res.release()
-		return true
-	}
-
-	srv.info.onCommand()
-	if req.client != nil {
-		req.client.trackCommand(req.Name)
-	}
-
-	err := cmd.ServeClient(res, req)
-	if res.buf.Len() == 0 {
-		if err != nil {
-			res.WriteError(err)
-		} else {
-			res.WriteOK()
-		}
-	}
-	return res.release() == nil
+// HandleStreamFunc registers a handler func for a command
+func (srv *Server) HandleStreamFunc(name string, fn StreamHandlerFunc) {
+	srv.HandleStream(name, StreamHandler(fn))
 }
 
 // Serve accepts incoming connections on a listener, creating a
 // new service goroutine for each.
 func (srv *Server) Serve(lis net.Listener) error {
-	defer lis.Close()
-
 	for {
-		conn, err := lis.Accept()
+		cn, err := lis.Accept()
 		if err != nil {
 			return err
 		}
-		go srv.serveClient(NewClient(conn))
+
+		if ka := srv.config.TCPKeepAlive; ka > 0 {
+			if tc, ok := cn.(*net.TCPConn); ok {
+				tc.SetKeepAlive(true)
+				tc.SetKeepAlivePeriod(ka)
+			}
+		}
+
+		go srv.serveClient(newClient(cn))
 	}
 }
 
 // Starts a new session, serving client
-func (srv *Server) serveClient(client *Client) {
+func (srv *Server) serveClient(c *Client) {
+	// Release client on exit
+	defer c.release()
+
 	// Register client
-	srv.clients.Put(client)
-	defer srv.clients.Close(client.id)
+	srv.info.register(c)
+	defer srv.info.deregister(c.id)
 
-	// Track connection
-	srv.info.onConnect()
-
-	// Apply TCP keep-alive, if configured
-	if alive := srv.config.TCPKeepAlive; alive > 0 {
-		if tcpconn, ok := client.conn.(*net.TCPConn); ok {
-			tcpconn.SetKeepAlive(true)
-			tcpconn.SetKeepAlivePeriod(alive)
-		}
+	// Create perform callback
+	perform := func(name string) error {
+		return srv.perform(c, name)
 	}
 
 	// Init request/response loop
-	reader := bufio.NewReader(client.conn)
-	for {
-		if timeout := srv.config.Timeout; timeout > 0 {
-			client.conn.SetDeadline(time.Now().Add(timeout))
+	for !c.closed {
+		// set deadline
+		if d := srv.config.Timeout; d > 0 {
+			c.cn.SetDeadline(time.Now().Add(d))
 		}
 
-		req, err := ParseRequest(reader)
-		if err != nil {
-			NewResponder(client.conn).WriteError(err)
-			return
-		}
-		req.client = client
+		// perform pipeline
+		if err := c.pipeline(perform); err != nil {
+			c.wr.AppendError("ERR " + err.Error())
 
-		ok := srv.apply(req, client.conn)
-		if !ok || client.quit {
+			if !resp.IsProtocolError(err) {
+				_ = c.wr.Flush()
+				return
+			}
+		}
+
+		// flush buffer, return on errors
+		if err := c.wr.Flush(); err != nil {
 			return
 		}
 	}
 }
 
-// listenUnix starts the unix listener on socket path
-func (srv *Server) listenUnix() (net.Listener, error) {
-	if stat, err := os.Stat(srv.Socket()); !os.IsNotExist(err) && !stat.IsDir() {
-		if err = os.RemoveAll(srv.Socket()); err != nil {
-			return nil, err
-		}
+func (srv *Server) perform(c *Client, name string) (err error) {
+	norm := strings.ToLower(name)
+
+	// find handler
+	srv.mu.RLock()
+	h, ok := srv.cmds[norm]
+	srv.mu.RUnlock()
+
+	if !ok {
+		c.wr.AppendError(UnknownCommand(name))
+		_ = c.rd.SkipCmd()
+		return
 	}
-	return net.Listen("unix", srv.Socket())
+
+	// register call
+	srv.info.command(c.id, norm)
+
+	switch handler := h.(type) {
+	case Handler:
+		if c.cmd, err = c.readCmd(c.cmd); err != nil {
+			return
+		}
+		handler.ServeRedeo(c.wr, c.cmd)
+
+	case StreamHandler:
+		if c.scmd, err = c.streamCmd(c.scmd); err != nil {
+			return
+		}
+		defer c.scmd.Discard()
+
+		handler.ServeRedeoStream(c.wr, c.scmd)
+	}
+
+	// flush when buffer is large enough
+	if n := c.wr.Buffered(); n > resp.MaxBufferSize/2 {
+		err = c.wr.Flush()
+	}
+	return
 }

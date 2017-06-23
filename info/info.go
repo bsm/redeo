@@ -1,5 +1,7 @@
 package info
 
+import "bytes"
+
 // Main info registry.
 // Please note: in order to minimise performance impact info registries
 // are not using locks are therefore not thread-safe. Please make sure
@@ -8,7 +10,7 @@ type Registry struct{ sections []*Section }
 
 // New creates a new Registry
 func New() *Registry {
-	return &Registry{make([]*Section, 0)}
+	return new(Registry)
 }
 
 // Section returns a section, or appends a new one
@@ -19,28 +21,31 @@ func (r *Registry) Section(name string) *Section {
 			return s
 		}
 	}
-	section := &Section{name: name, kvs: make([]kv, 0)}
+	section := &Section{name: name}
 	r.sections = append(r.sections, section)
 	return section
 }
 
 // Clear removes all sections from the registry
 func (r *Registry) Clear() {
-	r.sections = r.sections[:0]
+	r.sections = nil
 }
 
 // String generates an info string output
 func (r *Registry) String() string {
-	result := ""
-	for _, section := range r.sections {
-		if len(section.kvs) > 0 {
-			result += "# " + section.name + "\n" + section.String() + "\n"
+	buf := new(bytes.Buffer)
+	for i, section := range r.sections {
+		if len(section.kvs) == 0 {
+			continue
 		}
+
+		if i != 0 {
+			buf.WriteByte('\n')
+		}
+		buf.WriteString("# " + section.name + "\n")
+		section.writeTo(buf)
 	}
-	if len(result) > 1 {
-		result = result[:len(result)-1]
-	}
-	return result
+	return buf.String()
 }
 
 // An info section contains multiple values
@@ -56,16 +61,13 @@ func (s *Section) Register(name string, value Value) {
 
 // Clear removes all values from a section
 func (s *Section) Clear() {
-	s.kvs = s.kvs[:0]
+	s.kvs = nil
 }
 
-// String generates a section string output
-func (s *Section) String() string {
-	result := ""
+func (s *Section) writeTo(buf *bytes.Buffer) {
 	for _, kv := range s.kvs {
-		result += kv.name + ":" + kv.value.String() + "\n"
+		buf.WriteString(kv.name + ":" + kv.value.String() + "\n")
 	}
-	return result
 }
 
 type kv struct {

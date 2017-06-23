@@ -1,41 +1,14 @@
-# Redeo
-
-[![GoDoc](https://godoc.org/github.com/bsm/redeo?status.svg)](https://godoc.org/github.com/bsm/redeo)
-[![Build Status](https://travis-ci.org/bsm/redeo.png?branch=master)](https://travis-ci.org/bsm/redeo)
-[![Go Report Card](https://goreportcard.com/badge/github.com/bsm/redeo)](https://goreportcard.com/report/github.com/bsm/redeo)
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-
-The high-performance Swiss Army Knife for building redis-protocol compatible servers/services.
-
-## Parts
-
-This repository is organised into multiple components:
-
-* [root](./) package contains the framework for building redis-protocol compatible,
-  high-performance servers.
-* [resp](./resp/) implements low-level primitives for dealing with
-  RESP (REdis Serialization Protocol), client and server-side. It
-  contains basic wrappers for readers and writers to read/write requests and
-  responses.
-* [client](./client/) contains a minimalist pooled client.
-
-For full documentation and examples, please see the individual packages and the
-official API documentation: https://godoc.org/github.com/bsm/redeo.
-
-## Examples
-
-A simple server example with two commands:
-
-```go
-package main
+package redeo_test
 
 import (
-  "net"
+	"net"
+	"sync"
 
-  "github.com/bsm/redeo"
+	"github.com/bsm/redeo"
+	"github.com/bsm/redeo/resp"
 )
 
-func main() {
+func ExampleServer() {
 	// Init server and define handlers
 	srv := redeo.NewServer(nil)
 	srv.HandleFunc("ping", func(w resp.ResponseWriter, _ *resp.Command) {
@@ -55,12 +28,30 @@ func main() {
 	// Start serving (blocking)
 	srv.Serve(lis)
 }
-```
 
-More complex handlers:
+func ExampleClient() {
+	srv := redeo.NewServer(nil)
+	srv.HandleFunc("myip", func(w resp.ResponseWriter, cmd *resp.Command) {
+		client := redeo.GetClient(cmd.Context())
+		if client == nil {
+			w.AppendNil()
+			return
+		}
+		w.AppendInlineString(client.RemoteAddr().String())
+	})
+}
 
-```go
-func main() {
+func ExamplePing() {
+	srv := redeo.NewServer(nil)
+	srv.Handle("ping", redeo.Ping())
+}
+
+func ExampleInfo() {
+	srv := redeo.NewServer(nil)
+	srv.Handle("info", redeo.Info(srv))
+}
+
+func ExampleHandlerFunc() {
 	mu := sync.RWMutex{}
 	myData := make(map[string]map[string]string)
 	srv := redeo.NewServer(nil)
@@ -123,4 +114,3 @@ func main() {
 		w.AppendBulkString(val)
 	})
 }
-```
