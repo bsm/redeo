@@ -5,7 +5,7 @@ import (
 	"sync/atomic"
 )
 
-// A value must be exportable as a string
+// Value must be exportable as a string
 type Value interface {
 	String() string
 }
@@ -26,8 +26,17 @@ func (c Callback) String() string { return c() }
 // Counter is a numeric counter value
 type Counter struct{ v int64 }
 
-func NewCounter() *Counter               { return &Counter{} }
+// NewCounter return a Counter
+func NewCounter() *Counter { return &Counter{} }
+
+// Inc atomically increase the Counter by delta
 func (c *Counter) Inc(delta int64) int64 { return atomic.AddInt64(&c.v, delta) }
-func (c *Counter) Set(v int64)           { atomic.StoreInt64(&c.v, v) }
-func (c *Counter) Value() int64          { return atomic.LoadInt64(&c.v) }
-func (c *Counter) String() string        { return strconv.FormatInt(c.Value(), 10) }
+
+// Set atomically set the value of Counter to v
+func (c *Counter) Set(v int64) { atomic.StoreInt64(&c.v, v) }
+
+// Value atomically get the value stored in Counter
+func (c *Counter) Value() int64 { return atomic.LoadInt64(&c.v) }
+
+// String return the value of Counter as string
+func (c *Counter) String() string { return strconv.FormatInt(c.Value(), 10) }

@@ -36,6 +36,7 @@ var (
 	binNIL  = []byte("$-1\r\n")
 )
 
+// MaxBufferSize is the max request/response buffer size
 const MaxBufferSize = 64 * 1024
 
 func mkStdBuffer() []byte { return make([]byte, MaxBufferSize) }

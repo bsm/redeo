@@ -49,6 +49,7 @@ func NewResponseWriter(wr io.Writer) ResponseWriter {
 // ResponseType represents the reply type
 type ResponseType uint8
 
+// response type iota
 const (
 	TypeUnknown ResponseType = iota
 	TypeArray
@@ -84,7 +85,7 @@ type ResponseReader interface {
 	Reset(r io.Reader)
 }
 
-// ResponseReader wraps any reader interface, but
+// NewResponseReader returns ResponseReader, which wraps any reader interface, but
 // normally a net.Conn.
 func NewResponseReader(rd io.Reader) ResponseReader {
 	r := new(bufioR)

@@ -2,7 +2,7 @@ package info
 
 import "bytes"
 
-// Main info registry.
+// Registry : main info registry.
 // Please note: in order to minimise performance impact info registries
 // are not using locks are therefore not thread-safe. Please make sure
 // you register all metrics and values before you start the server.
@@ -48,7 +48,7 @@ func (r *Registry) String() string {
 	return buf.String()
 }
 
-// An info section contains multiple values
+// Section : an info section contains multiple values
 type Section struct {
 	name string
 	kvs  []kv
