@@ -44,10 +44,10 @@ func (m *commandMatcher) Match(actual interface{}) (bool, error) {
 }
 
 func (m *commandMatcher) FailureMessage(actual interface{}) string {
-	return fmt.Sprintf("Expected\n\t%#v\nto match\n\t%#v", m.actual, m.expected)
+	return fmt.Sprintf("Expected\n\t%#v\n to match\n\t%#v", m.actual, m.expected)
 }
 func (m *commandMatcher) NegatedFailureMessage(actual interface{}) string {
-	return fmt.Sprintf("Expected\n\t%#v\nnot to match\n\t%#v", m.actual, m.expected)
+	return fmt.Sprintf("Expected\n\t%#v\n not to match\n\t%#v", m.actual, m.expected)
 }
 
 type streamMatcher struct {
@@ -80,10 +80,10 @@ func (m *streamMatcher) Match(actual interface{}) (bool, error) {
 }
 
 func (m *streamMatcher) FailureMessage(actual interface{}) string {
-	return fmt.Sprintf("Expected\n\t%#v\nto match\n\t%#v", m.actual, m.expected)
+	return fmt.Sprintf("Expected\n\t%#v\n to match\n\t%#v", m.actual, m.expected)
 }
 func (m *streamMatcher) NegatedFailureMessage(actual interface{}) string {
-	return fmt.Sprintf("Expected\n\t%#v\nnot to match\n\t%#v", m.actual, m.expected)
+	return fmt.Sprintf("Expected\n\t%#v\n not to match\n\t%#v", m.actual, m.expected)
 }
 
 func cmdToSlice(cmd *resp.Command) []string {
