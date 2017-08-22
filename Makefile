@@ -1,13 +1,15 @@
+PKG=$(shell go list ./... | grep -v vendor)
+
 default: vet test
 
 test:
-	go test ./...
+	go test $(PKG)
 
 vet:
-	go vet ./...
+	go vet $(PKG)
 
 bench:
-	go test ./... -run=NONE -bench=. -benchmem -benchtime=5s
+	go test $(PKG) -run=NONE -bench=. -benchmem -benchtime=5s
 
 # go get -u github.com/davelondon/rebecca/cmd/becca
 
