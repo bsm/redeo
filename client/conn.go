@@ -70,6 +70,9 @@ type Conn interface {
 	// A zero value for t means Write will not time out.
 	SetWriteDeadline(time.Time) error
 
+	// Close (force) closes the connection.
+	Close() error
+
 	madeByRedeo()
 }
 
@@ -83,5 +86,9 @@ type conn struct {
 }
 
 // MarkFailed implements Conn interface.
-func (c *conn) MarkFailed()  { c.failed = true }
+func (c *conn) MarkFailed() { c.failed = true }
+
+// Close implements Conn interface.
+func (c *conn) Close() error { c.failed = true; return c.Conn.Close() }
+
 func (c *conn) madeByRedeo() {}
