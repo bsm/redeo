@@ -2,10 +2,10 @@
 
 
 [[projects]]
-  branch = "master"
   name = "github.com/bsm/pool"
   packages = ["."]
-  revision = "502d32d2bce05a40e6405b00207b8ec16ae931f7"
+  revision = "aef6431197b549db4cc9cbbdc06d9c3dde2996bd"
+  version = "v0.8.0"
 
 [[projects]]
   name = "github.com/onsi/ginkgo"
@@ -46,6 +46,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "67eb58024ad4ccff51b1ce6ab74f26e8a018f30fb57a69524773231d9a9b0a5c"
+  inputs-digest = "202e7cae2f728ff790117ef6fa65af3a598f1075ff39444c50964547d817aefc"
   solver-name = "gps-cdcl"
   solver-version = 1
