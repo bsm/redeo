@@ -51,6 +51,14 @@ func ExampleInfo() {
 	srv.Handle("info", redeo.Info(srv))
 }
 
+func ExamplePubSub() {
+	broker := redeo.NewPubSubBroker()
+
+	srv := redeo.NewServer(nil)
+	srv.Handle("publish", broker.Publish())
+	srv.Handle("subscribe", broker.Subscribe())
+}
+
 func ExampleHandlerFunc() {
 	mu := sync.RWMutex{}
 	myData := make(map[string]map[string]string)

@@ -6,9 +6,30 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bsm/redeo/redeotest"
+	"github.com/bsm/redeo/resp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
+
+var _ = Describe("Ping", func() {
+	subject := Ping()
+
+	It("should PONG", func() {
+		w := redeotest.NewRecorder()
+		subject.ServeRedeo(w, resp.NewCommand("PING"))
+		Expect(w.Response()).To(Equal("PONG"))
+
+		w = redeotest.NewRecorder()
+		subject.ServeRedeo(w, resp.NewCommand("PING", resp.CommandArgument("eCHo")))
+		Expect(w.Response()).To(Equal("eCHo"))
+
+		w = redeotest.NewRecorder()
+		subject.ServeRedeo(w, resp.NewCommand("PING", resp.CommandArgument("bad"), resp.CommandArgument("args")))
+		Expect(w.Response()).To(Equal("ERR wrong number of arguments for 'PING' command"))
+	})
+
+})
 
 // ------------------------------------------------------------------------
 

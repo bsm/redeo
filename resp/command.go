@@ -37,6 +37,18 @@ type Command struct {
 	baseCmd
 }
 
+// NewCommand returns a new command instance;
+// useful for tests
+func NewCommand(name string, argv ...CommandArgument) *Command {
+	return &Command{
+		Name: name,
+		baseCmd: baseCmd{
+			argc: len(argv),
+			argv: argv,
+		},
+	}
+}
+
 // Arg returns the command argument at position i
 func (c *Command) Arg(i int) CommandArgument {
 	if i > -1 && i < c.argc {

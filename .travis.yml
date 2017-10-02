@@ -5,5 +5,5 @@ install:
   - go get -u github.com/golang/dep/cmd/dep
   - dep ensure -v -vendor-only
 go:
-  - 1.9
-  - 1.8.3
+  - 1.9.x
+  - 1.8.x
