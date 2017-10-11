@@ -70,6 +70,11 @@ type Conn interface {
 	// A zero value for t means Write will not time out.
 	SetWriteDeadline(time.Time) error
 
+	// UnreadBytes returns the number of unread bytes.
+	UnreadBytes() int
+	// UnflushedBytes returns the number of pending/unflushed bytes.
+	UnflushedBytes() int
+
 	// Close (force) closes the connection.
 	Close() error
 
@@ -87,6 +92,12 @@ type conn struct {
 
 // MarkFailed implements Conn interface.
 func (c *conn) MarkFailed() { c.failed = true }
+
+// UnreadBytes implements Conn interface.
+func (c *conn) UnreadBytes() int { return c.ResponseReader.Buffered() }
+
+// UnflushedBytes implements Conn interface.
+func (c *conn) UnflushedBytes() int { return c.RequestWriter.Buffered() }
 
 // Close implements Conn interface.
 func (c *conn) Close() error { c.failed = true; return c.Conn.Close() }
