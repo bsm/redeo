@@ -141,6 +141,37 @@ var _ = Describe("RequestReader", func() {
 		Expect(buf.Len()).To(Equal(100000))
 	})
 
+	It("should allow to discard stream commands", func() {
+		r := setup("*2\r\n$4\r\nECHO\r\n$100\r\n" + strings.Repeat("x", 100) + "\r\n*1\r\n$4\r\nPING\r\n")
+
+		cmd, err := r.StreamCmd(nil)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(cmd.Name).To(Equal("ECHO"))
+		Expect(cmd.ArgN()).To(Equal(1))
+		Expect(cmd.Discard()).To(Succeed())
+
+		cmd, err = r.StreamCmd(cmd)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(cmd.Name).To(Equal("PING"))
+	})
+
+	It("should auto-drain streams", func() {
+		r := setup("*2\r\n$4\r\nECHO\r\n$100\r\n" + strings.Repeat("x", 100) + "\r\n*1\r\n$4\r\nPING\r\n")
+
+		cmd, err := r.StreamCmd(nil)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(cmd.Name).To(Equal("ECHO"))
+		Expect(cmd.ArgN()).To(Equal(1))
+
+		_, err = cmd.NextArg()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(cmd.Discard()).To(Succeed())
+
+		cmd, err = r.StreamCmd(cmd)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(cmd.Name).To(Equal("PING"))
+	})
+
 	It("should recover inconsistent lengths just like Redis", func() {
 		r := setup("*1\r\n$4\r\nPING123\r\n*1\r\n$4\r\nPING\r\n")
 

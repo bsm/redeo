@@ -98,6 +98,8 @@ type CommandStream struct {
 
 	p int
 	r *bufioR
+
+	cur io.ReadCloser
 }
 
 // Discard discards the (remaining) arguments
@@ -108,7 +110,13 @@ func (c *CommandStream) Discard() error {
 	}
 
 	var err error
-	if c.r == nil {
+	if c.cur != nil {
+		if e := c.cur.Close(); e != nil {
+			err = e
+		}
+	}
+
+	if c.r != nil {
 		for ; c.p < c.argc; c.p++ {
 			if e := c.r.SkipBulk(); e != nil {
 				err = e
@@ -124,10 +132,11 @@ func (c *CommandStream) NextArg() (io.Reader, error) {
 		rd := bytes.NewReader(c.argv[c.p])
 		c.p++
 		return rd, nil
-	} else if c.p < c.argc && c.r != nil {
-		rd, err := c.r.StreamBulk()
+	} else if c.r != nil && c.p < c.argc {
+		var err error
+		c.cur, err = c.r.StreamBulk()
 		c.p++
-		return rd, err
+		return c.cur, err
 	}
 	return nil, errNoMoreArgs
 }

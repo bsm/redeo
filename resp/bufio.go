@@ -126,7 +126,7 @@ func (b *bufioR) ReadBulk(p []byte) ([]byte, error) {
 	return p, nil
 }
 
-func (b *bufioR) StreamBulk() (io.Reader, error) {
+func (b *bufioR) StreamBulk() (io.ReadCloser, error) {
 	sz, err := b.ReadBulkLen()
 	if err != nil {
 		return nil, err
@@ -157,12 +157,14 @@ func (b *bufioR) SkipBulk() error {
 	if err != nil {
 		return err
 	}
+	return b.skipN(sz + 2)
+}
 
+func (b *bufioR) skipN(sz int64) error {
 	// if bulk doesn't overflow buffer
 	extra := sz - int64(b.Buffered())
 	if extra < 1 {
 		b.r += int(sz)
-		b.skip(2)
 		return nil
 	}
 
@@ -171,7 +173,7 @@ func (b *bufioR) SkipBulk() error {
 	b.w = 0
 
 	// ... and discard the extra bytes
-	x := extra + 2
+	x := extra
 	r := io.LimitReader(b.rd, x)
 	for {
 		n, err := r.Read(b.buf)
@@ -318,6 +320,17 @@ func (b *bulkReader) Read(p []byte) (n int, err error) {
 		n -= int(pad)
 	}
 	return
+}
+
+// Close discards any unread data
+func (b *bulkReader) Close() error {
+	if b.n <= 0 {
+		return nil
+	}
+
+	err := b.skipN(b.n)
+	b.n = 0
+	return err
 }
 
 // --------------------------------------------------------------------

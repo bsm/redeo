@@ -31,8 +31,9 @@ type Conn interface {
 	ReadError() (string, error)
 	// ReadInline reads an inline status string
 	ReadInlineString() (string, error)
-	// StreamBulk returns a bulk-reader
-	StreamBulk() (io.Reader, error)
+	// StreamBulk returns a bulk-reader.
+	// Readers must be closed after use.
+	StreamBulk() (io.ReadCloser, error)
 
 	// WriteCmd writes a full command as part of a pipeline. To execute the pipeline,
 	// you must call Flush.

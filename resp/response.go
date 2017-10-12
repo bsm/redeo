@@ -72,7 +72,8 @@ type ResponseReader interface {
 	// ReadBulk reads a bulk and returns bytes (optionally appending to a passed p buffer)
 	ReadBulk(p []byte) ([]byte, error)
 	// StreamBulk parses a bulk responses and returns a streaming reader object
-	StreamBulk() (io.Reader, error)
+	// Returned responses must be closed.
+	StreamBulk() (io.ReadCloser, error)
 	// ReadInt reads an int value
 	ReadInt() (int64, error)
 	// ReadArrayLen reads the array length
