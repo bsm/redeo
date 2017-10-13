@@ -115,14 +115,13 @@ func (b *bufioR) ReadBulk(p []byte) ([]byte, error) {
 		return p, err
 	}
 
-	if err := b.require(int(sz)); err != nil {
+	if err := b.require(int(sz + 2)); err != nil {
 		return p, err
 	}
 
 	p = append(p, b.buf[b.r:b.r+int(sz)]...)
+	b.r += int(sz + 2)
 
-	b.r += int(sz)
-	b.skip(2)
 	return p, nil
 }
 
@@ -141,14 +140,13 @@ func (b *bufioR) ReadBulkString() (string, error) {
 		return "", err
 	}
 
-	if err := b.require(int(sz)); err != nil {
+	if err := b.require(int(sz + 2)); err != nil {
 		return "", err
 	}
 
 	s := string(b.buf[b.r : b.r+int(sz)])
+	b.r += int(sz + 2)
 
-	b.r += int(sz)
-	b.skip(2)
 	return s, nil
 }
 

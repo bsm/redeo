@@ -227,9 +227,7 @@ var _ = Describe("RequestReader", func() {
 			}),
 		Entry("blank commands without line-break",
 			"*1\r\n$0\r\n",
-			[][]string{
-				{""},
-			}),
+			nil),
 		Entry("blank commands without line-break followed by inline command",
 			"*1\r\n$0\r\nPING\r\n",
 			[][]string{
