@@ -11,6 +11,12 @@ vet:
 bench:
 	go test $(PKG) -run=NONE -bench=. -benchmem -benchtime=5s
 
+fuzz:
+	go test ./.fuzz
+
+fuzzrace:
+	go test -race ./.fuzz
+
 # go get -u github.com/davelondon/rebecca/cmd/becca
 
 doc: README.md client/README.md resp/README.md
