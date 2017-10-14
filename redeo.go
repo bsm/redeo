@@ -1,8 +1,6 @@
 package redeo
 
-import (
-	"github.com/bsm/redeo/resp"
-)
+import "github.com/bsm/redeo/resp"
 
 // UnknownCommand returns an unknown command error string
 func UnknownCommand(cmd string) string {
