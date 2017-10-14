@@ -12,7 +12,7 @@ import (
 )
 
 func TestFuzz(t *testing.T) {
-	lis, err := net.Listen("tcp", ":")
+	lis, err := net.Listen("tcp", "127.0.0.1:")
 	if err != nil {
 		t.Fatalf("could not open a listener: %v", err)
 		return
@@ -46,7 +46,7 @@ func TestFuzz(t *testing.T) {
 
 			for i := 0; i < n; i++ {
 				if !fuzzIteration(t, cln, i) {
-					break
+					return
 				}
 			}
 		}()
@@ -55,19 +55,19 @@ func TestFuzz(t *testing.T) {
 }
 
 func fuzzIteration(t *testing.T, c *redis.Client, i int) bool {
-	if act, err, xargs, xbytes := fuzzCallMB(c); err != nil {
-		t.Fatalf("fuzzmb failed with: %v", err)
+	if cmd, act, err, xargs, xbytes := fuzzCallMB(c); err != nil {
+		t.Fatalf("fuzzmb failed with: %v, command: %q", err, cmd.String())
 		return false
 	} else if act["na"] != xargs {
-		t.Fatalf("fuzzmb expected the number of processed arguments to be %d but was %d", xargs, act["na"])
+		t.Fatalf("fuzzmb expected the number of processed arguments to be %d but was %d, command: %q", xargs, act["na"], cmd.String())
 		return false
 	} else if act["nb"] != xbytes {
-		t.Fatalf("fuzzmb expected the number ofprocessed  bytes to be %d but was %d", xbytes, act["nb"])
+		t.Fatalf("fuzzmb expected the number ofprocessed  bytes to be %d but was %d, command: %q", xbytes, act["nb"], cmd.String())
 		return false
 	}
 
 	if i%3 == 0 {
-		if _, err := fuzzCallErr(c); err == nil {
+		if err := fuzzCallErr(c); err == nil {
 			t.Fatal("fuzzerr expected error but received none")
 			return false
 		} else if err.Error() != "ERR wrong number of arguments for 'fuzzerr' command" {
@@ -77,7 +77,7 @@ func fuzzIteration(t *testing.T, c *redis.Client, i int) bool {
 	}
 
 	if i%4 == 0 {
-		if _, err := fuzzCallUnknown(c); err == nil {
+		if err := fuzzCallUnknown(c); err == nil {
 			t.Fatal("fuzzunknown expected error but received none")
 			return false
 		} else if err.Error() != "ERR unknown command 'fuzzunknown'" {
@@ -86,11 +86,11 @@ func fuzzIteration(t *testing.T, c *redis.Client, i int) bool {
 		}
 	}
 
-	if act, err, exp := fuzzCallStream(c); err != nil {
-		t.Fatalf("fuzzstream failed with: %v", err)
+	if cmd, act, err, exp := fuzzCallStream(c); err != nil {
+		t.Fatalf("fuzzstream failed with: %v, command: %q", err, cmd.String())
 		return false
 	} else if act != exp {
-		t.Fatalf("fuzzstream expected the number of processed arguments to be %d but was %d", exp, act)
+		t.Fatalf("fuzzstream expected the number of processed arguments to be %d but was %d, command: %q", exp, act, cmd.String())
 		return false
 	}
 
@@ -99,7 +99,7 @@ func fuzzIteration(t *testing.T, c *redis.Client, i int) bool {
 
 // --------------------------------------------------------------------
 
-func fuzzCallMB(c *redis.Client) (act map[string]int64, err error, xargs int64, xbytes int64) {
+func fuzzCallMB(c *redis.Client) (cmd *redis.StringIntMapCmd, act map[string]int64, err error, xargs int64, xbytes int64) {
 	xargs = rand.Int63n(20)
 	args := append(make([]interface{}, 0, int(xargs+1)), "fuzzmb")
 	for i := int64(0); i < xargs; i++ {
@@ -108,19 +108,19 @@ func fuzzCallMB(c *redis.Client) (act map[string]int64, err error, xargs int64, 
 		args = append(args, b[:n])
 		xbytes += int64(n)
 	}
-	cmd := redis.NewStringIntMapCmd(args...)
+	cmd = redis.NewStringIntMapCmd(args...)
 	c.Process(cmd)
 	act, err = cmd.Result()
 	return
 }
 
-func fuzzCallErr(c *redis.Client) (string, error) {
+func fuzzCallErr(c *redis.Client) error {
 	cmd := redis.NewStatusCmd("fuzzerr")
 	c.Process(cmd)
-	return cmd.Result()
+	return cmd.Err()
 }
 
-func fuzzCallStream(c *redis.Client) (act int64, err error, exp int64) {
+func fuzzCallStream(c *redis.Client) (cmd *redis.IntCmd, act int64, err error, exp int64) {
 	exp = rand.Int63n(3)
 	args := append(make([]interface{}, 0, int(exp+1)), "fuzzstream")
 	for i := int64(0); i < exp; i++ {
@@ -128,16 +128,16 @@ func fuzzCallStream(c *redis.Client) (act int64, err error, exp int64) {
 		n, _ := rand.Read(b)
 		args = append(args, b[:n])
 	}
-	cmd := redis.NewIntCmd(args...)
+	cmd = redis.NewIntCmd(args...)
 	c.Process(cmd)
 	act, err = cmd.Result()
 	return
 }
 
-func fuzzCallUnknown(c *redis.Client) (string, error) {
+func fuzzCallUnknown(c *redis.Client) error {
 	cmd := redis.NewStatusCmd("fuzzunknown")
 	c.Process(cmd)
-	return cmd.Result()
+	return cmd.Err()
 }
 
 // --------------------------------------------------------------------
