@@ -19,8 +19,8 @@ type CommandDetails struct {
 	// Arity is the command arity specification.
 	// https://redis.io/commands/command#command-arity.
 	// It follows a simple pattern:
-	// 	 positive if command has fixed number of required arguments.
-	// 	 negative if command has minimum number of required arguments, but may have more.
+	//   positive if command has fixed number of required arguments.
+	//   negative if command has minimum number of required arguments, but may have more.
 	Arity int64
 
 	// Flags is an enumeration of command flags.
