@@ -11,6 +11,37 @@ import (
 	"github.com/bsm/redeo/info"
 )
 
+// CommandDetails describes supported commands
+type CommandDetails struct {
+	// Name is the command name, returned as a lowercase string.
+	Name string
+
+	// Arity is the command arity specification.
+	// https://redis.io/commands/command#command-arity.
+	// It follows a simple pattern:
+	// 	 positive if command has fixed number of required arguments.
+	// 	 negative if command has minimum number of required arguments, but may have more.
+	Arity int64
+
+	// Flags is an enumeration of command flags.
+	// https://redis.io/commands/command#flags.
+	Flags []string
+
+	// FirstKey is the position of first key in argument list.
+	// https://redis.io/commands/command#first-key-in-argument-list
+	FirstKey int64
+
+	// LastKey is the position of last key in argument list.
+	// https://redis.io/commands/command#last-key-in-argument-list
+	LastKey int64
+
+	// KeyStepCount is the step count for locating repeating keys.
+	// https://redis.io/commands/command#step-count
+	KeyStepCount int64
+}
+
+// --------------------------------------------------------------------
+
 // ClientInfo contains client stats
 type ClientInfo struct {
 	// ID is the internal client ID

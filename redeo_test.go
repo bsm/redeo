@@ -31,6 +31,27 @@ var _ = Describe("Ping", func() {
 
 })
 
+var _ = Describe("Commands", func() {
+	subject := Commands([]CommandDetails{
+		{Name: "GeT", Arity: 2, Flags: []string{"readonly", "fast"}, FirstKey: 1, LastKey: 1, KeyStepCount: 1},
+		{Name: "randomkey", Arity: 1, Flags: []string{"readonly", "random"}},
+		{Name: "mset", Arity: -3, Flags: []string{"write", "denyoom"}, FirstKey: 1, LastKey: -1, KeyStepCount: 2},
+		{Name: "quit", Arity: 1},
+	})
+
+	It("should enumerate", func() {
+		w := redeotest.NewRecorder()
+		subject.ServeRedeo(w, resp.NewCommand("COMMAND"))
+		Expect(w.Response()).To(Equal([]interface{}{
+			[]interface{}{"get", int64(2), []interface{}{"readonly", "fast"}, int64(1), int64(1), int64(1)},
+			[]interface{}{"randomkey", int64(1), []interface{}{"readonly", "random"}, int64(0), int64(0), int64(0)},
+			[]interface{}{"mset", int64(-3), []interface{}{"write", "denyoom"}, int64(1), int64(-1), int64(2)},
+			[]interface{}{"quit", int64(1), []interface{}{}, int64(0), int64(0), int64(0)},
+		}))
+	})
+
+})
+
 // ------------------------------------------------------------------------
 
 func TestSuite(t *testing.T) {

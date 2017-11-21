@@ -1,6 +1,10 @@
 package redeo
 
-import "github.com/bsm/redeo/resp"
+import (
+	"strings"
+
+	"github.com/bsm/redeo/resp"
+)
 
 // UnknownCommand returns an unknown command error string
 func UnknownCommand(cmd string) string {
@@ -12,7 +16,8 @@ func WrongNumberOfArgs(cmd string) string {
 	return "ERR wrong number of arguments for '" + cmd + "' command"
 }
 
-// Ping returns a ping handler
+// Ping returns a ping handler.
+// https://redis.io/commands/ping
 func Ping() Handler {
 	return HandlerFunc(func(w resp.ResponseWriter, c *resp.Command) {
 		switch c.ArgN() {
@@ -26,10 +31,32 @@ func Ping() Handler {
 	})
 }
 
-// Info returns an info handler
+// Info returns an info handler.
+// https://redis.io/commands/info
 func Info(s *Server) Handler {
 	return HandlerFunc(func(w resp.ResponseWriter, c *resp.Command) {
 		w.AppendBulkString(s.Info().String())
+	})
+}
+
+// Commands returns a command handler.
+// https://redis.io/commands/command
+func Commands(cmds []CommandDetails) Handler {
+	return HandlerFunc(func(w resp.ResponseWriter, c *resp.Command) {
+		w.AppendArrayLen(len(cmds))
+
+		for _, cmd := range cmds {
+			w.AppendArrayLen(6)
+			w.AppendBulkString(strings.ToLower(cmd.Name))
+			w.AppendInt(cmd.Arity)
+			w.AppendArrayLen(len(cmd.Flags))
+			for _, flag := range cmd.Flags {
+				w.AppendBulkString(flag)
+			}
+			w.AppendInt(cmd.FirstKey)
+			w.AppendInt(cmd.LastKey)
+			w.AppendInt(cmd.KeyStepCount)
+		}
 	})
 }
 
