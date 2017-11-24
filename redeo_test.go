@@ -52,6 +52,42 @@ var _ = Describe("Commands", func() {
 
 })
 
+var _ = Describe("SubCommands", func() {
+	subject := SubCommands(map[string]Handler{
+		"echo": Echo(),
+		"ping": Ping(),
+	})
+
+	It("should fail on calls without a sub", func() {
+		w := redeotest.NewRecorder()
+		subject.ServeRedeo(w, resp.NewCommand("CUSTOM"))
+		Expect(w.Response()).To(Equal("ERR wrong number of arguments for 'CUSTOM' command"))
+	})
+
+	It("should fail on calls with an unknown sub", func() {
+		w := redeotest.NewRecorder()
+		subject.ServeRedeo(w, resp.NewCommand("CUSTOM", resp.CommandArgument("missing")))
+		Expect(w.Response()).To(Equal("ERR Unknown custom subcommand 'missing'"))
+	})
+
+	It("should fail on calls with invalid args", func() {
+		w := redeotest.NewRecorder()
+		subject.ServeRedeo(w, resp.NewCommand("CUSTOM", resp.CommandArgument("echo")))
+		Expect(w.Response()).To(Equal("ERR wrong number of arguments for 'CUSTOM echo' command"))
+	})
+
+	It("should succeed", func() {
+		w := redeotest.NewRecorder()
+		subject.ServeRedeo(w, resp.NewCommand("CUSTOM", resp.CommandArgument("echo"), resp.CommandArgument("HeLLo")))
+		Expect(w.Response()).To(Equal("HeLLo"))
+
+		w = redeotest.NewRecorder()
+		subject.ServeRedeo(w, resp.NewCommand("CUSTOM", resp.CommandArgument("ping")))
+		Expect(w.Response()).To(Equal("PONG"))
+	})
+
+})
+
 // ------------------------------------------------------------------------
 
 func TestSuite(t *testing.T) {

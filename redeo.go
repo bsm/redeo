@@ -31,6 +31,19 @@ func Ping() Handler {
 	})
 }
 
+// Echo returns an echo handler.
+// https://redis.io/commands/echo
+func Echo() Handler {
+	return HandlerFunc(func(w resp.ResponseWriter, c *resp.Command) {
+		switch c.ArgN() {
+		case 1:
+			w.AppendBulk(c.Arg(0))
+		default:
+			w.AppendError(WrongNumberOfArgs(c.Name))
+		}
+	})
+}
+
 // Info returns an info handler.
 // https://redis.io/commands/info
 func Info(s *Server) Handler {
@@ -57,6 +70,27 @@ func Commands(cmds []CommandDetails) Handler {
 			w.AppendInt(cmd.LastKey)
 			w.AppendInt(cmd.KeyStepCount)
 		}
+	})
+}
+
+// SubCommands returns a handler that is parsing sub-commands
+func SubCommands(mapping map[string]Handler) Handler {
+	return HandlerFunc(func(w resp.ResponseWriter, c *resp.Command) {
+
+		// First, check if we have a subcommand
+		if c.ArgN() == 0 {
+			w.AppendError(WrongNumberOfArgs(c.Name))
+			return
+		}
+
+		firstArg := c.Arg(0).String()
+		if h, ok := mapping[strings.ToLower(firstArg)]; ok {
+			cmd := resp.NewCommand(c.Name+" "+firstArg, c.Args()[1:]...)
+			h.ServeRedeo(w, cmd)
+			return
+		}
+
+		w.AppendError("ERR Unknown " + strings.ToLower(c.Name) + " subcommand '" + firstArg + "'")
 	})
 }
 
