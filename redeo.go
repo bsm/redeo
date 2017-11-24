@@ -74,24 +74,25 @@ func Commands(cmds []CommandDetails) Handler {
 }
 
 // SubCommands returns a handler that is parsing sub-commands
-func SubCommands(mapping map[string]Handler) Handler {
-	return HandlerFunc(func(w resp.ResponseWriter, c *resp.Command) {
+type SubCommands map[string]Handler
 
-		// First, check if we have a subcommand
-		if c.ArgN() == 0 {
-			w.AppendError(WrongNumberOfArgs(c.Name))
-			return
-		}
+func (s SubCommands) ServeRedeo(w resp.ResponseWriter, c *resp.Command) {
 
-		firstArg := c.Arg(0).String()
-		if h, ok := mapping[strings.ToLower(firstArg)]; ok {
-			cmd := resp.NewCommand(c.Name+" "+firstArg, c.Args()[1:]...)
-			h.ServeRedeo(w, cmd)
-			return
-		}
+	// First, check if we have a subcommand
+	if c.ArgN() == 0 {
+		w.AppendError(WrongNumberOfArgs(c.Name))
+		return
+	}
 
-		w.AppendError("ERR Unknown " + strings.ToLower(c.Name) + " subcommand '" + firstArg + "'")
-	})
+	firstArg := c.Arg(0).String()
+	if h, ok := s[strings.ToLower(firstArg)]; ok {
+		cmd := resp.NewCommand(c.Name+" "+firstArg, c.Args()[1:]...)
+		h.ServeRedeo(w, cmd)
+		return
+	}
+
+	w.AppendError("ERR Unknown " + strings.ToLower(c.Name) + " subcommand '" + firstArg + "'")
+
 }
 
 // --------------------------------------------------------------------

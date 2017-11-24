@@ -53,10 +53,10 @@ var _ = Describe("Commands", func() {
 })
 
 var _ = Describe("SubCommands", func() {
-	subject := SubCommands(map[string]Handler{
+	subject := SubCommands{
 		"echo": Echo(),
 		"ping": Ping(),
-	})
+	}
 
 	It("should fail on calls without a sub", func() {
 		w := redeotest.NewRecorder()

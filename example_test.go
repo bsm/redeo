@@ -51,6 +51,14 @@ func ExampleInfo() {
 	srv.Handle("info", redeo.Info(srv))
 }
 
+func ExampleSubCommands() {
+	srv := redeo.NewServer(nil)
+	srv.Handle("custom", redeo.SubCommands{
+		"ping": redeo.Ping(),
+		"echo": redeo.Echo(),
+	})
+}
+
 func ExamplePubSub() {
 	broker := redeo.NewPubSubBroker()
 
