@@ -46,20 +46,6 @@ func NewResponseWriter(wr io.Writer) ResponseWriter {
 
 // --------------------------------------------------------------------
 
-// ResponseType represents the reply type
-type ResponseType uint8
-
-// response type iota
-const (
-	TypeUnknown ResponseType = iota
-	TypeArray
-	TypeBulk
-	TypeInline
-	TypeError
-	TypeInt
-	TypeNil
-)
-
 // ResponseReader is used by clients to wrap a server connection and
 // parse responses.
 type ResponseReader interface {
@@ -82,6 +68,8 @@ type ResponseReader interface {
 	ReadError() (string, error)
 	// ReadInlineString reads a status string
 	ReadInlineString() (string, error)
+	// Scan tries to scan the result into the given value.
+	Scan(v interface{}) error
 	// Buffered returns the number of buffered (unread) bytes.
 	Buffered() int
 	// Reset resets the reader to a new reader and recycles internal buffers.

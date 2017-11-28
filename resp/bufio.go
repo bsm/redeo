@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"reflect"
 	"strconv"
 	"sync"
 )
@@ -236,6 +237,115 @@ func (b *bufioR) Reset(r io.Reader) {
 	b.reset(b.buf, r)
 }
 
+// Scan attempts to scan the date stream into a given value
+func (b *bufioR) Scan(dst interface{}) error {
+	pt, err := b.PeekType()
+	if err != nil {
+		return err
+	}
+
+	switch pt {
+	case TypeError:
+		src, err := b.ReadError()
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf(`resp: server error %q`, src)
+	case TypeArray:
+		sz, err := b.ReadArrayLen()
+		if err != nil {
+			return err
+		}
+		return b.scanArray(dst, sz)
+	case TypeNil:
+		if err := b.ReadNil(); err != nil {
+			return err
+		}
+		return scanNil(dst)
+	case TypeInt:
+		src, err := b.ReadInt()
+		if err != nil {
+			return err
+		}
+		return scanInt(dst, src)
+	case TypeInline:
+		src, err := b.ReadInlineString()
+		if err != nil {
+			return err
+		}
+		return scanString(dst, src)
+	case TypeBulk:
+		if v, ok := dst.(*[]byte); ok {
+			src, err := b.ReadBulk(nil)
+			if err != nil {
+				return err
+			}
+			return assignBytes(v, src)
+		}
+
+		src, err := b.ReadBulkString()
+		if err != nil {
+			return err
+		}
+		return scanString(dst, src)
+	default:
+		return errBadResponseType
+	}
+}
+
+func (b *bufioR) scanArray(dst interface{}, sz int) error {
+	dv, err := scanIndirectValue(dst)
+	if err != nil {
+		return err
+	}
+
+	switch dv.Kind() {
+	case reflect.Slice:
+		if dv.Len() < sz {
+			nv := reflect.MakeSlice(dv.Type(), sz, sz)
+			reflect.Copy(nv, dv)
+			dv.Set(nv)
+		}
+
+		for i := 0; i < sz; i++ {
+			val := dv.Index(i)
+			if val.Kind() != reflect.Ptr && val.CanAddr() {
+				val = val.Addr()
+			}
+			if err := b.Scan(val.Interface()); err != nil {
+				return err
+			}
+		}
+		return nil
+	case reflect.Map:
+		if sz%2 != 0 {
+			break
+		}
+
+		dt := dv.Type()
+		if dv.IsNil() {
+			dv.Set(reflect.MakeMap(dt))
+		}
+
+		kt, vt := dt.Key(), dt.Elem()
+		for i := 0; i < sz; i += 2 {
+			key := reflect.New(kt)
+			if err := b.Scan(key.Interface()); err != nil {
+				return err
+			}
+
+			val := reflect.New(vt)
+			if err := b.Scan(val.Interface()); err != nil {
+				return err
+			}
+
+			dv.SetMapIndex(key.Elem(), val.Elem())
+		}
+		return nil
+	}
+	return scanErrf(dst, "unsupported conversion from array[%d]", sz)
+}
+
 // require ensures that sz bytes are buffered
 func (b *bufioR) require(sz int) error {
 	extra := sz - b.Buffered()
@@ -385,7 +495,7 @@ func (ln bufioLn) ParseInt() (int64, error) {
 		} else if c == '-' && i == 0 {
 			m = -1
 		} else {
-			return 0, errNotAnInteger
+			return 0, errNotANumber
 		}
 	}
 	return n * m, nil

@@ -2,10 +2,13 @@ package resp_test
 
 import (
 	"bytes"
+	"reflect"
 	"strings"
+	"time"
 
 	"github.com/bsm/redeo/resp"
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 )
 
@@ -269,6 +272,97 @@ var _ = Describe("ResponseReader", func() {
 
 		_, err = subject.PeekType()
 		Expect(err).To(MatchError("EOF"))
+	})
+
+	Describe("Scan", func() {
+
+		DescribeTable("success",
+			func(s string, v interface{}, exp interface{}) {
+				_, err := buf.WriteString(s)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(subject.Scan(v)).To(Succeed())
+				Expect(reflect.ValueOf(v).Elem().Interface()).To(Equal(exp))
+			},
+
+			Entry("bool (numeric true)", ":1\r\n", new(bool), true),
+			Entry("bool (numeric false)", ":0\r\n", new(bool), false),
+			Entry("bool (OK)", "+OK\r\n", new(bool), true),
+			Entry("bool (true from inline)", "+1\r\n", new(bool), true),
+			Entry("bool (true from bulk)", "$1\r\n1\r\n", new(bool), true),
+			Entry("bool (false from inline)", "+0\r\n", new(bool), false),
+			Entry("bool (false from bulk)", "$1\r\n0\r\n", new(bool), false),
+
+			Entry("int64", ":123\r\n", new(int64), int64(123)),
+			Entry("int32", ":123\r\n", new(int32), int32(123)),
+			Entry("int16", ":123\r\n", new(int16), int16(123)),
+			Entry("int8", ":123\r\n", new(int8), int8(123)),
+			Entry("int", ":123\r\n", new(int), int(123)),
+			Entry("int (from inline)", "+123\r\n", new(int), int(123)),
+			Entry("int (from bulk)", "$3\r\n123\r\n", new(int), int(123)),
+
+			Entry("uint64", ":123\r\n", new(uint64), uint64(123)),
+			Entry("uint32", ":123\r\n", new(uint32), uint32(123)),
+			Entry("uint16", ":123\r\n", new(uint16), uint16(123)),
+			Entry("uint8", ":123\r\n", new(uint8), uint8(123)),
+			Entry("uint", ":123\r\n", new(uint), uint(123)),
+			Entry("uint (from inline)", "+123\r\n", new(uint), uint(123)),
+			Entry("uint (from bulk)", "$3\r\n123\r\n", new(uint), uint(123)),
+
+			Entry("float64 (from string)", "+2.312\r\n", new(float64), 2.312),
+			Entry("float64 (from int)", ":123\r\n", new(float64), 123.0),
+			Entry("float32 (from string)", "$5\r\n2.312\r\n", new(float32), float32(2.312)),
+			Entry("float32 (from int)", ":123\r\n", new(float32), float32(123.0)),
+
+			Entry("string (inline)", "+hello\r\n", new(string), "hello"),
+			Entry("string (bulk)", "$5\r\nhello\r\n", new(string), "hello"),
+			Entry("string (from int)", ":123\r\n", new(string), "123"),
+
+			Entry("bytes (inline)", "+hello\r\n", new([]byte), []byte("hello")),
+			Entry("bytes (bulk)", "$5\r\nhello\r\n", new([]byte), []byte("hello")),
+			Entry("bytes (from int)", ":123\r\n", new([]byte), []byte("123")),
+
+			Entry("string slices", "*2\r\n+hello\r\n$5\r\nworld\r\n", new([]string), []string{"hello", "world"}),
+			Entry("string slices (with ints)", "*2\r\n+hello\r\n:123\r\n", new([]string), []string{"hello", "123"}),
+			Entry("number slices", "*2\r\n:1\r\n:2\r\n", new([]int64), []int64{1, 2}),
+			Entry("number slices (from strings)", "*2\r\n:1\r\n+2\r\n", new([]int64), []int64{1, 2}),
+			Entry("nested slices", "*2\r\n*2\r\n:1\r\n:2\r\n*2\r\n:3\r\n:4\r\n", new([][]int64), [][]int64{{1, 2}, {3, 4}}),
+
+			Entry("maps", "*2\r\n+hello\r\n$5\r\nworld\r\n", new(map[string]string), map[string]string{"hello": "world"}),
+			Entry("maps (nested)", "*4\r\n+foo\r\n*2\r\n+bar\r\n:1\r\n+baz\r\n*2\r\n+boo\r\n:2\r\n", new(map[string]map[string]int), map[string]map[string]int{
+				"foo": {"bar": 1},
+				"baz": {"boo": 2},
+			}),
+		)
+
+		DescribeTable("failure",
+			func(s string, v interface{}, exp string) {
+				_, err := buf.WriteString(s)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(subject.Scan(v)).To(MatchError(exp))
+			},
+			Entry("errors", "-ERR something bad\r\n", new(string), `resp: server error "ERR something bad"`),
+			Entry("bad type", "+hello\r\n", new(time.Time), `resp: error on Scan into *time.Time: unsupported conversion from "hello"`),
+			Entry("not a pointer", "+hello\r\n", "value", `resp: error on Scan into string: destination not a pointer`),
+
+			Entry("bool (bad type)", "*3\r\n", new(bool), `resp: error on Scan into *bool: unsupported conversion from array[3]`),
+			Entry("bool (string)", "+hello\r\n", new(bool), `resp: error on Scan into *bool: unsupported conversion from "hello"`),
+			Entry("bool (bad numeric)", ":2\r\n", new(bool), `resp: error on Scan into *bool: unsupported conversion from 2`),
+			Entry("bool (from nil)", "$-1\r\n", new(bool), `resp: error on Scan into *bool: unsupported conversion from <nil>`),
+
+			Entry("int64 (bad type)", "*3\r\n", new(int64), `resp: error on Scan into *int64: unsupported conversion from array[3]`),
+			Entry("int64 (string)", "+hello\r\n", new(int64), `resp: error on Scan into *int64: unsupported conversion from "hello"`),
+			Entry("int64 (from nil)", "$-1\r\n", new(int64), `resp: error on Scan into *int64: unsupported conversion from <nil>`),
+
+			Entry("string (bad type)", "*3\r\n", new(string), `resp: error on Scan into *string: unsupported conversion from array[3]`),
+			Entry("string (nil)", "$-1\r\n", new(string), `resp: error on Scan into *string: unsupported conversion from <nil>`),
+
+			Entry("float64 (bad type)", "*3\r\n", new(float64), `resp: error on Scan into *float64: unsupported conversion from array[3]`),
+			Entry("float64 (bad string)", "+hello\r\n", new(float64), `resp: error on Scan into *float64: unsupported conversion from "hello"`),
+
+			Entry("slices (bad type)", "+hello\r\n", new([]string), `resp: error on Scan into *[]string: unsupported conversion from "hello"`),
+			Entry("maps (odd number)", "*3\r\n+foo\r\n+bar\r\n+ba\r\n", new(map[string]string), `resp: error on Scan into *map[string]string: unsupported conversion from array[3]`),
+		)
+
 	})
 
 })

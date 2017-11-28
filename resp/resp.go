@@ -3,7 +3,25 @@
 // server side readers and writers.
 package resp
 
-import "fmt"
+import (
+	"fmt"
+)
+
+// ResponseType represents the reply type
+type ResponseType uint8
+
+// response type iota
+const (
+	TypeUnknown ResponseType = iota
+	TypeArray
+	TypeBulk
+	TypeInline
+	TypeError
+	TypeInt
+	TypeNil
+)
+
+// --------------------------------------------------------------------
 
 type protoError string
 
@@ -24,8 +42,9 @@ const (
 	errInvalidBulkLength      = protoError("Protocol error: invalid bulk length")
 	errBlankBulkLength        = protoError("Protocol error: expected '$', got ' '")
 	errInlineRequestTooLong   = protoError("Protocol error: too big inline request")
-	errNotAnInteger           = protoError("Protocol error: expected an integer")
+	errNotANumber             = protoError("Protocol error: expected a number")
 	errNotANilMessage         = protoError("Protocol error: expected a nil")
+	errBadResponseType        = protoError("Protocol error: bad response type")
 )
 
 var (
