@@ -31,6 +31,8 @@ func scanNil(dst interface{}) error {
 		}
 		*w = nil
 		return nil
+	case nil:
+		return nil
 	}
 
 	return scanValue(dst, nil)
@@ -154,6 +156,8 @@ func scanString(dst interface{}, src string) error {
 			*v = float64(n)
 			return nil
 		}
+	case nil:
+		return nil
 	}
 	return scanValue(dst, src)
 }
@@ -252,16 +256,22 @@ func scanInt(dst interface{}, src int64) error {
 		}
 		*v = float64(src)
 		return nil
+	case nil:
+		return nil
 	}
 	return scanValue(dst, src)
 }
 
 func scanValue(dst, src interface{}) error {
-	dv, err := scanIndirectValue(dst)
-	if err != nil {
-		return err
+	dpv := reflect.ValueOf(dst)
+	if dpv.Kind() != reflect.Ptr {
+		return scanErrf(dst, errMsgNotPtr)
+	}
+	if dpv.IsNil() {
+		return scanErrf(dst, errMsgNilPtr)
 	}
 
+	dv := reflect.Indirect(dpv)
 	sv := reflect.ValueOf(src)
 
 	// check if directly assignable
@@ -286,16 +296,4 @@ func assignBytes(v *[]byte, src []byte) error {
 
 	*v = src
 	return nil
-}
-
-func scanIndirectValue(dst interface{}) (reflect.Value, error) {
-	dpv := reflect.ValueOf(dst)
-	if dpv.Kind() != reflect.Ptr {
-		return dpv, scanErrf(dst, errMsgNotPtr)
-	}
-	if dpv.IsNil() {
-		return dpv, scanErrf(dst, errMsgNotPtr)
-	}
-
-	return reflect.Indirect(dpv), nil
 }

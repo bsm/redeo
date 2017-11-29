@@ -68,8 +68,8 @@ type ResponseReader interface {
 	ReadError() (string, error)
 	// ReadInlineString reads a status string
 	ReadInlineString() (string, error)
-	// Scan tries to scan the result into the given value.
-	Scan(v interface{}) error
+	// Scan scans results into the given values.
+	Scan(vv ...interface{}) error
 	// Buffered returns the number of buffered (unread) bytes.
 	Buffered() int
 	// Reset resets the reader to a new reader and recycles internal buffers.

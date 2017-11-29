@@ -206,3 +206,33 @@ func ExampleResponseWriter_CopyBulk_in_array() {
 	// Output:
 	// "*2\r\n$6\r\nitem 1\r\n$6\r\nitem 2\r\n"
 }
+
+func ExampleResponseReader_Scan() {
+	b := new(bytes.Buffer)
+	w := resp.NewResponseWriter(b)
+
+	w.AppendBulkString("foo")
+	w.AppendInt(33)
+	w.AppendInlineString("7.54")
+	w.AppendArrayLen(2)
+	w.AppendInlineString("bar")
+	w.AppendInt(14)
+	w.Flush()
+
+	var v struct {
+		String  string
+		Number  int
+		Decimal float64
+		Slice   []string
+	}
+
+	r := resp.NewResponseReader(b)
+	if err := r.Scan(&v.String, &v.Number, &v.Decimal, &v.Slice); err != nil {
+		fmt.Printf("ERROR: %v\n", err)
+		return
+	}
+	fmt.Printf("%+v\n", v)
+
+	// Output:
+	// {String:foo Number:33 Decimal:7.54 Slice:[bar 14]}
+}

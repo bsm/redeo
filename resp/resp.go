@@ -10,6 +10,25 @@ import (
 // ResponseType represents the reply type
 type ResponseType uint8
 
+// String returns the response type description
+func (t ResponseType) String() string {
+	switch t {
+	case TypeArray:
+		return "Array"
+	case TypeBulk:
+		return "Bulk"
+	case TypeInline:
+		return "Inline"
+	case TypeError:
+		return "Error"
+	case TypeInt:
+		return "Int"
+	case TypeNil:
+		return "Nil"
+	}
+	return "Unknown"
+}
+
 // response type iota
 const (
 	TypeUnknown ResponseType = iota
@@ -20,6 +39,33 @@ const (
 	TypeInt
 	TypeNil
 )
+
+// --------------------------------------------------------------------
+
+// Scannable interfaces may implement custom Scan behaviour
+type Scannable interface {
+	// ScanResponse scans theresponse from the reader
+	ScanResponse(t ResponseType, r ResponseReader) error
+}
+
+// NullString is a scannable that can deal with nil values
+type NullString struct {
+	Value string
+	Valid bool
+}
+
+// ScanResponse implements Scannable
+func (s *NullString) ScanResponse(t ResponseType, r ResponseReader) error {
+	if t == TypeNil {
+		return r.ReadNil()
+	}
+
+	if err := r.Scan(&s.Value); err != nil {
+		return err
+	}
+	s.Valid = true
+	return nil
+}
 
 // --------------------------------------------------------------------
 

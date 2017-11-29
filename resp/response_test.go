@@ -320,18 +320,43 @@ var _ = Describe("ResponseReader", func() {
 			Entry("bytes (inline)", "+hello\r\n", new([]byte), []byte("hello")),
 			Entry("bytes (bulk)", "$5\r\nhello\r\n", new([]byte), []byte("hello")),
 			Entry("bytes (from int)", ":123\r\n", new([]byte), []byte("123")),
+			Entry("bytes (from nil)", "$-1\r\n", new([]byte), ([]byte)(nil)),
 
 			Entry("string slices", "*2\r\n+hello\r\n$5\r\nworld\r\n", new([]string), []string{"hello", "world"}),
 			Entry("string slices (with ints)", "*2\r\n+hello\r\n:123\r\n", new([]string), []string{"hello", "123"}),
 			Entry("number slices", "*2\r\n:1\r\n:2\r\n", new([]int64), []int64{1, 2}),
 			Entry("number slices (from strings)", "*2\r\n:1\r\n+2\r\n", new([]int64), []int64{1, 2}),
-			Entry("nested slices", "*2\r\n*2\r\n:1\r\n:2\r\n*2\r\n:3\r\n:4\r\n", new([][]int64), [][]int64{{1, 2}, {3, 4}}),
+			Entry("nested slices", "*2\r\n*2\r\n:1\r\n:2\r\n*2\r\n:3\r\n:4\r\n", new([][]int64), [][]int64{
+				{1, 2},
+				{3, 4},
+			}),
 
-			Entry("maps", "*2\r\n+hello\r\n$5\r\nworld\r\n", new(map[string]string), map[string]string{"hello": "world"}),
+			Entry("maps", "*2\r\n+hello\r\n$5\r\nworld\r\n", new(map[string]string), map[string]string{
+				"hello": "world",
+			}),
+			Entry("maps (mixed)", "*4\r\n+foo\r\n+bar\r\n+baz\r\n:3\r\n", new(map[string]string), map[string]string{
+				"foo": "bar",
+				"baz": "3",
+			}),
 			Entry("maps (nested)", "*4\r\n+foo\r\n*2\r\n+bar\r\n:1\r\n+baz\r\n*2\r\n+boo\r\n:2\r\n", new(map[string]map[string]int), map[string]map[string]int{
 				"foo": {"bar": 1},
 				"baz": {"boo": 2},
 			}),
+			Entry("slice of maps", "*2\r\n*2\r\n+bar\r\n:1\r\n*2\r\n+boo\r\n:2\r\n", new([]map[string]int), []map[string]int{
+				{"bar": 1},
+				{"boo": 2},
+			}),
+
+			Entry("nullable (from nil)", "$-1\r\n", new(resp.NullString), resp.NullString{}),
+			Entry("nullable (inline)", "+foo\r\n", new(resp.NullString), resp.NullString{Value: "foo", Valid: true}),
+
+			Entry("scannable", "*2\r\n"+
+				"*6\r\n+llen\r\n:2\r\n*2\r\n+readonly\r\n+fast\r\n:1\r\n:1\r\n:1\r\n"+
+				"*6\r\n+mset\r\n:-3\r\n*1\r\n+write\r\n:1\r\n:-1\r\n:2\r\n",
+				new([]ScannableStruct), []ScannableStruct{
+					{Name: "llen", Arity: 2, Flags: []string{"readonly", "fast"}, FirstKey: 1, LastKey: 1, KeyStep: 1},
+					{Name: "mset", Arity: -3, Flags: []string{"write"}, FirstKey: 1, LastKey: -1, KeyStep: 2},
+				}),
 		)
 
 		DescribeTable("failure",
@@ -361,6 +386,18 @@ var _ = Describe("ResponseReader", func() {
 
 			Entry("slices (bad type)", "+hello\r\n", new([]string), `resp: error on Scan into *[]string: unsupported conversion from "hello"`),
 			Entry("maps (odd number)", "*3\r\n+foo\r\n+bar\r\n+ba\r\n", new(map[string]string), `resp: error on Scan into *map[string]string: unsupported conversion from array[3]`),
+		)
+
+		DescribeTable("nil",
+			func(s string, v interface{}) {
+				_, err := buf.WriteString(s)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(subject.Scan(v)).To(Succeed())
+			},
+			Entry("nil (from nil)", "$-1\r\n", nil),
+			Entry("nil (from int)", ":123\r\n", nil),
+			Entry("nil (from inline)", "+foo\r\n", nil),
+			Entry("nil (from array)", "*1\r\n+foo\r\n", nil),
 		)
 
 	})

@@ -12,6 +12,16 @@ import (
 	"github.com/onsi/gomega/types"
 )
 
+var _ = Describe("ResponseType", func() {
+
+	It("should implement stringer", func() {
+		Expect(resp.TypeArray.String()).To(Equal("Array"))
+		Expect(resp.TypeNil.String()).To(Equal("Nil"))
+		Expect(resp.TypeUnknown.String()).To(Equal("Unknown"))
+	})
+
+})
+
 // --------------------------------------------------------------------
 
 func TestSuite(t *testing.T) {
@@ -92,4 +102,28 @@ func cmdToSlice(cmd *resp.Command) []string {
 		res = append(res, string(arg))
 	}
 	return res
+}
+
+type ScannableStruct struct {
+	Name     string
+	Arity    int
+	Flags    []string
+	FirstKey int
+	LastKey  int
+	KeyStep  int
+}
+
+func (s *ScannableStruct) ScanResponse(t resp.ResponseType, r resp.ResponseReader) error {
+	if t != resp.TypeArray {
+		return fmt.Errorf("resp_test: unable to scan response, bad type: %s", t.String())
+	}
+
+	sz, err := r.ReadArrayLen()
+	if err != nil {
+		return err
+	} else if sz != 6 {
+		return fmt.Errorf("resp_test: expected 6 attributes, but received %d", sz)
+	}
+
+	return r.Scan(&s.Name, &s.Arity, &s.Flags, &s.FirstKey, &s.LastKey, &s.KeyStep)
 }

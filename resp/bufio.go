@@ -237,20 +237,35 @@ func (b *bufioR) Reset(r io.Reader) {
 	b.reset(b.buf, r)
 }
 
-// Scan attempts to scan the date stream into a given value
-func (b *bufioR) Scan(dst interface{}) error {
+// Scan attempts to scan responses into given values
+func (b *bufioR) Scan(vv ...interface{}) error {
+	for _, v := range vv {
+		if err := b.scan(v); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (b *bufioR) scan(dst interface{}) error {
 	pt, err := b.PeekType()
 	if err != nil {
 		return err
 	}
 
-	switch pt {
-	case TypeError:
+	if pt == TypeError {
 		src, err := b.ReadError()
 		if err != nil {
 			return err
 		}
 		return fmt.Errorf(`resp: server error %q`, src)
+	}
+
+	if scn, ok := dst.(Scannable); ok {
+		return scn.ScanResponse(pt, b)
+	}
+
+	switch pt {
 	case TypeArray:
 		sz, err := b.ReadArrayLen()
 		if err != nil {
@@ -294,11 +309,25 @@ func (b *bufioR) Scan(dst interface{}) error {
 }
 
 func (b *bufioR) scanArray(dst interface{}, sz int) error {
-	dv, err := scanIndirectValue(dst)
-	if err != nil {
-		return err
+	dpv := reflect.ValueOf(dst)
+
+	// skip array if nil is passed
+	if dpv.Kind() == reflect.Invalid && dst == nil {
+		for i := 0; i < sz; i++ {
+			if err := b.scan(nil); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if dpv.Kind() != reflect.Ptr {
+		return scanErrf(dst, errMsgNotPtr)
+	}
+	if dpv.IsNil() {
+		return scanErrf(dst, errMsgNilPtr)
 	}
 
+	dv := reflect.Indirect(dpv)
 	switch dv.Kind() {
 	case reflect.Slice:
 		if dv.Len() < sz {
@@ -307,16 +336,17 @@ func (b *bufioR) scanArray(dst interface{}, sz int) error {
 			dv.Set(nv)
 		}
 
+		var err error
 		for i := 0; i < sz; i++ {
 			val := dv.Index(i)
 			if val.Kind() != reflect.Ptr && val.CanAddr() {
 				val = val.Addr()
 			}
-			if err := b.Scan(val.Interface()); err != nil {
-				return err
+			if e := b.scan(val.Interface()); e != nil && err == nil {
+				err = e
 			}
 		}
-		return nil
+		return err
 	case reflect.Map:
 		if sz%2 != 0 {
 			break
@@ -328,21 +358,19 @@ func (b *bufioR) scanArray(dst interface{}, sz int) error {
 		}
 
 		kt, vt := dt.Key(), dt.Elem()
+
+		var err error
 		for i := 0; i < sz; i += 2 {
-			key := reflect.New(kt)
-			if err := b.Scan(key.Interface()); err != nil {
-				return err
+			key, val := reflect.New(kt), reflect.New(vt)
+			if e := b.Scan(key.Interface(), val.Interface()); e != nil && err == nil {
+				err = e
+			} else {
+				dv.SetMapIndex(key.Elem(), val.Elem())
 			}
-
-			val := reflect.New(vt)
-			if err := b.Scan(val.Interface()); err != nil {
-				return err
-			}
-
-			dv.SetMapIndex(key.Elem(), val.Elem())
 		}
-		return nil
+		return err
 	}
+
 	return scanErrf(dst, "unsupported conversion from array[%d]", sz)
 }
 
