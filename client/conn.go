@@ -11,29 +11,11 @@ import (
 // Conn wraps a single network connection and exposes
 // common read/write methods.
 type Conn interface {
+	resp.ResponseParser
+
 	// MarkFailed marks the connection as failed which
 	// will force it to be closed instead of being returned to the pool
 	MarkFailed()
-
-	// PeekType returns the type of the next response block
-	PeekType() (resp.ResponseType, error)
-	// ReadNil reads a nil value
-	ReadNil() error
-	// ReadBulk reads a bulk value (optionally appending it to a passed p buffer)
-	ReadBulk(p []byte) ([]byte, error)
-	// ReadBulkString reads a bulk value as string
-	ReadBulkString() (string, error)
-	// ReadInt reads an int value
-	ReadInt() (int64, error)
-	// ReadArrayLen reads the array length
-	ReadArrayLen() (int, error)
-	// ReadError reads an error string
-	ReadError() (string, error)
-	// ReadInline reads an inline status string
-	ReadInlineString() (string, error)
-	// StreamBulk returns a bulk-reader.
-	// Readers must be closed after use.
-	StreamBulk() (io.ReadCloser, error)
 
 	// WriteCmd writes a full command as part of a pipeline. To execute the pipeline,
 	// you must call Flush.

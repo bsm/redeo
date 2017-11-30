@@ -46,9 +46,8 @@ func NewResponseWriter(wr io.Writer) ResponseWriter {
 
 // --------------------------------------------------------------------
 
-// ResponseReader is used by clients to wrap a server connection and
-// parse responses.
-type ResponseReader interface {
+// ResponseParser is a basic response parser
+type ResponseParser interface {
 	// PeekType returns the type of the next response block
 	PeekType() (ResponseType, error)
 	// ReadNil reads a nil value
@@ -70,6 +69,13 @@ type ResponseReader interface {
 	ReadInlineString() (string, error)
 	// Scan tries to scan the result into the given value.
 	Scan(v interface{}) error
+}
+
+// ResponseReader is used by clients to wrap a server connection and
+// parse responses.
+type ResponseReader interface {
+	ResponseParser
+
 	// Buffered returns the number of buffered (unread) bytes.
 	Buffered() int
 	// Reset resets the reader to a new reader and recycles internal buffers.
