@@ -67,8 +67,8 @@ type ResponseParser interface {
 	ReadError() (string, error)
 	// ReadInlineString reads a status string
 	ReadInlineString() (string, error)
-	// Scan tries to scan the result into the given value.
-	Scan(v interface{}) error
+	// Scan scans results into the given values.
+	Scan(vv ...interface{}) error
 }
 
 // ResponseReader is used by clients to wrap a server connection and
