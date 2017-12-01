@@ -41,7 +41,7 @@ func (srv *Server) Handle(name string, h Handler) {
 	srv.mu.Unlock()
 }
 
-// HandleFunc registers a handler func for a command
+// HandleFunc registers a handler func for a command.
 func (srv *Server) HandleFunc(name string, fn HandlerFunc) {
 	srv.Handle(name, fn)
 }
@@ -56,20 +56,6 @@ func (srv *Server) HandleStream(name string, h StreamHandler) {
 // HandleStreamFunc registers a handler func for a command
 func (srv *Server) HandleStreamFunc(name string, fn StreamHandlerFunc) {
 	srv.HandleStream(name, fn)
-}
-
-// HandleCommand registers a simple command handler.
-func (srv *Server) HandleCommand(name string, h CommandHandler) {
-	srv.HandleFunc(name, func(w resp.ResponseWriter, c *resp.Command) {
-		if err := w.Append(h.ServeRedeoCommand(c)); err != nil {
-			w.AppendError("ERR " + err.Error())
-		}
-	})
-}
-
-// HandleCommandFunc registers a simple command handler func.
-func (srv *Server) HandleCommandFunc(name string, fn CommandHandlerFunc) {
-	srv.HandleCommand(name, fn)
 }
 
 // Serve accepts incoming connections on a listener, creating a

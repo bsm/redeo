@@ -121,6 +121,28 @@ type HandlerFunc func(w resp.ResponseWriter, c *resp.Command)
 // ServeRedeo calls f(w, c).
 func (f HandlerFunc) ServeRedeo(w resp.ResponseWriter, c *resp.Command) { f(w, c) }
 
+// CommandHandlerFunc implements Handler, accepts a command and must return one of
+// the following types:
+//   nil
+//   error
+//   string
+//   []byte
+//   bool
+//   float32, float64
+//   int, int8, int16, int32, int64
+//   uint, uint8, uint16, uint32, uint64
+//   resp.CustomResponse instances
+//   slices of any of the above typs
+//   maps containing keys and values of any of the above types
+type CommandHandlerFunc func(c *resp.Command) interface{}
+
+// ServeRedeo implements Handler
+func (f CommandHandlerFunc) ServeRedeo(w resp.ResponseWriter, c *resp.Command) {
+	if err := w.Append(f(c)); err != nil {
+		w.AppendError("ERR " + err.Error())
+	}
+}
+
 // --------------------------------------------------------------------
 
 // StreamHandler is an  interface for responding to streaming commands
@@ -134,28 +156,3 @@ type StreamHandlerFunc func(w resp.ResponseWriter, c *resp.CommandStream)
 
 // ServeRedeoStream calls f(w, c).
 func (f StreamHandlerFunc) ServeRedeoStream(w resp.ResponseWriter, c *resp.CommandStream) { f(w, c) }
-
-// --------------------------------------------------------------------
-
-// CommandHandler is an simplified command handler
-type CommandHandler interface {
-	// ServeRedeoCommand accepts a command and must return one of:
-	//   * nil
-	//   * error
-	//   * string
-	//   * []byte
-	//   * bool
-	//   * float32, float64
-	//   * int, int8, int16, int32, int64
-	//   * uint, uint8, uint16, uint32, uint64
-	//   * resp.CustomResponse instances
-	//   * slices of any of the above typs
-	//   * maps containing keys and values of any of the above types
-	ServeRedeoCommand(c *resp.Command) interface{}
-}
-
-// CommandHandlerFunc is a callback function, implementing Handler.
-type CommandHandlerFunc func(*resp.Command) interface{}
-
-// ServeRedeo calls f(w, c).
-func (f CommandHandlerFunc) ServeRedeoCommand(c *resp.Command) interface{} { return f(c) }

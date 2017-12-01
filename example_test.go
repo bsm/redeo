@@ -9,14 +9,23 @@ import (
 )
 
 func ExampleServer() {
-	// Init server and define handlers
 	srv := redeo.NewServer(nil)
+
+	// Define handlers
 	srv.HandleFunc("ping", func(w resp.ResponseWriter, _ *resp.Command) {
 		w.AppendInlineString("PONG")
 	})
 	srv.HandleFunc("info", func(w resp.ResponseWriter, _ *resp.Command) {
 		w.AppendBulkString(srv.Info().String())
 	})
+
+	// More handlers; demo usage of redeo.CommandHandlerFunc wrapper
+	srv.Handle("echo", redeo.CommandHandlerFunc(func(c *resp.Command) interface{} {
+		if c.ArgN() != 1 {
+			return redeo.ErrWrongNumberOfArgs(c.Name)
+		}
+		return c.Arg(0)
+	}))
 
 	// Open a new listener
 	lis, err := net.Listen("tcp", ":9736")
@@ -79,81 +88,77 @@ func ExamplePubSub() {
 
 func ExampleHandlerFunc() {
 	mu := sync.RWMutex{}
-	myData := make(map[string]map[string]string)
+	data := make(map[string]string)
 	srv := redeo.NewServer(nil)
 
-	// handle HSET
-	srv.HandleFunc("hset", func(w resp.ResponseWriter, c *resp.Command) {
-		if c.ArgN() != 3 {
-			w.AppendError(redeo.WrongNumberOfArgs(c.Name))
-			return
-		}
-
-		key := c.Arg(0).String()
-		field := c.Arg(1).String()
-		value := c.Arg(2).String()
-
-		// lock for write
-		mu.Lock()
-		defer mu.Unlock()
-
-		// fetch hash @ key
-		hash, ok := myData[key]
-		if !ok {
-			hash = make(map[string]string)
-			myData[key] = hash
-		}
-
-		// check if set and replace
-		_, ok = hash[field]
-		hash[field] = value
-
-		if ok {
-			w.AppendInt(0)
-		} else {
-			w.AppendInt(1)
-		}
-	})
-
-	// handle HGET
-	srv.HandleFunc("hget", func(w resp.ResponseWriter, c *resp.Command) {
+	srv.HandleFunc("set", func(w resp.ResponseWriter, c *resp.Command) {
 		if c.ArgN() != 2 {
 			w.AppendError(redeo.WrongNumberOfArgs(c.Name))
 			return
 		}
 
+		key := c.Arg(0).String()
+		val := c.Arg(1).String()
+
+		mu.Lock()
+		data[key] = val
+		mu.Unlock()
+
+		w.AppendInt(1)
+	})
+
+	srv.HandleFunc("get", func(w resp.ResponseWriter, c *resp.Command) {
+		if c.ArgN() != 1 {
+			w.AppendError(redeo.WrongNumberOfArgs(c.Name))
+			return
+		}
+
+		key := c.Arg(0).String()
 		mu.RLock()
-		defer mu.RUnlock()
+		val, ok := data[key]
+		mu.RUnlock()
 
-		hash, ok := myData[c.Arg(0).String()]
-		if !ok {
-			w.AppendNil()
+		if ok {
+			w.AppendBulkString(val)
 			return
 		}
-
-		val, ok := hash[c.Arg(1).String()]
-		if !ok {
-			w.AppendNil()
-			return
-		}
-
-		w.AppendBulkString(val)
+		w.AppendNil()
 	})
 }
 
 func ExampleCommandHandlerFunc() {
+	mu := sync.RWMutex{}
 	data := make(map[string]string)
-
 	srv := redeo.NewServer(nil)
-	srv.HandleCommandFunc("get", func(c *resp.Command) interface{} {
+
+	srv.Handle("set", redeo.CommandHandlerFunc(func(c *resp.Command) interface{} {
+		if c.ArgN() != 2 {
+			return redeo.ErrWrongNumberOfArgs(c.Name)
+		}
+
+		key := c.Arg(0).String()
+		val := c.Arg(1).String()
+
+		mu.Lock()
+		data[key] = val
+		mu.Unlock()
+
+		return 1
+	}))
+
+	srv.Handle("get", redeo.CommandHandlerFunc(func(c *resp.Command) interface{} {
 		if c.ArgN() != 1 {
 			return redeo.ErrWrongNumberOfArgs(c.Name)
 		}
 
-		val, ok := data[c.Arg(0).String()]
-		if !ok {
-			return nil
+		key := c.Arg(0).String()
+		mu.RLock()
+		val, ok := data[key]
+		mu.RUnlock()
+
+		if ok {
+			return val
 		}
-		return val
-	})
+		return nil
+	}))
 }

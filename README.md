@@ -62,65 +62,82 @@ More complex handlers:
 ```go
 func main() {
 	mu := sync.RWMutex{}
-	myData := make(map[string]map[string]string)
+	data := make(map[string]string)
 	srv := redeo.NewServer(nil)
 
-	// handle HSET
-	srv.HandleFunc("hset", func(w resp.ResponseWriter, c *resp.Command) {
-		// validate arguments
-		if c.ArgN() != 3 {
-			w.AppendError(redeo.WrongNumberOfArgs(c.Name))
-			return
-		}
-
-		// lock for write
-		mu.Lock()
-		defer mu.Unlock()
-
-		// fetch (find-or-create) key
-		hash, ok := myData[c.Arg(0).String()]
-		if !ok {
-			hash = make(map[string]string)
-			myData[c.Arg(0).String()] = hash
-		}
-
-		// check if field already exists
-		_, ok = hash[c.Arg(1).String()]
-
-		// set field
-		hash[c.Arg(1).String()] = c.Arg(2).String()
-
-		// respond
-		if ok {
-			w.AppendInt(0)
-		} else {
-			w.AppendInt(1)
-		}
-	})
-
-	// handle HGET
-	srv.HandleFunc("hget", func(w resp.ResponseWriter, c *resp.Command) {
+	srv.HandleFunc("set", func(w resp.ResponseWriter, c *resp.Command) {
 		if c.ArgN() != 2 {
 			w.AppendError(redeo.WrongNumberOfArgs(c.Name))
 			return
 		}
 
-		mu.RLock()
-		defer mu.RUnlock()
+		key := c.Arg(0).String()
+		val := c.Arg(1).String()
 
-		hash, ok := myData[c.Arg(0).String()]
-		if !ok {
-			w.AppendNil()
-			return
-		}
+		mu.Lock()
+		data[key] = val
+		mu.Unlock()
 
-		val, ok := hash[c.Arg(1).String()]
-		if !ok {
-			w.AppendNil()
-			return
-		}
-
-		w.AppendBulkString(val)
+		w.AppendInt(1)
 	})
+
+	srv.HandleFunc("get", func(w resp.ResponseWriter, c *resp.Command) {
+		if c.ArgN() != 1 {
+			w.AppendError(redeo.WrongNumberOfArgs(c.Name))
+			return
+		}
+
+		key := c.Arg(0).String()
+		mu.RLock()
+		val, ok := data[key]
+		mu.RUnlock()
+
+		if ok {
+			w.AppendBulkString(val)
+			return
+		}
+		w.AppendNil()
+	})
+}
+```
+
+Redeo also supports command wrappers:
+
+```go
+func main() {
+	mu := sync.RWMutex{}
+	data := make(map[string]string)
+	srv := redeo.NewServer(nil)
+
+	srv.Handle("set", redeo.CommandHandlerFunc(func(c *resp.Command) interface{} {
+		if c.ArgN() != 2 {
+			return redeo.ErrWrongNumberOfArgs(c.Name)
+		}
+
+		key := c.Arg(0).String()
+		val := c.Arg(1).String()
+
+		mu.Lock()
+		data[key] = val
+		mu.Unlock()
+
+		return 1
+	}))
+
+	srv.Handle("get", redeo.CommandHandlerFunc(func(c *resp.Command) interface{} {
+		if c.ArgN() != 1 {
+			return redeo.ErrWrongNumberOfArgs(c.Name)
+		}
+
+		key := c.Arg(0).String()
+		mu.RLock()
+		val, ok := data[key]
+		mu.RUnlock()
+
+		if ok {
+			return val
+		}
+		return nil
+	}))
 }
 ```
