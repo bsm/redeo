@@ -14,6 +14,8 @@ type CustomResponse interface {
 // ResponseWriter is used by servers to wrap a client connection and send
 // protocol-compatible responses in buffered pipelines.
 type ResponseWriter interface {
+	io.Writer
+
 	// AppendArrayLen appends an array header to the output buffer.
 	AppendArrayLen(n int)
 	// AppendBulk appends bulk bytes to the output buffer.

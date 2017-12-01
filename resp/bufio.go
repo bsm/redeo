@@ -432,7 +432,7 @@ func (ln bufioLn) ParseSize(prefix byte, fallback error) (int64, error) {
 // --------------------------------------------------------------------
 
 type bufioW struct {
-	wr  io.Writer
+	io.Writer
 	buf []byte
 	mu  sync.Mutex
 }
@@ -553,7 +553,7 @@ func (b *bufioW) CopyBulk(src io.Reader, n int64) error {
 		return err
 	}
 	b.buf = b.buf[:cap(b.buf)]
-	_, err := io.CopyBuffer(b.wr, io.LimitReader(src, int64(n)), b.buf)
+	_, err := io.CopyBuffer(b, io.LimitReader(src, int64(n)), b.buf)
 	b.buf = b.buf[:0]
 	if err != nil {
 		return err
@@ -581,7 +581,7 @@ func (b *bufioW) flush() error {
 		return nil
 	}
 
-	if _, err := b.wr.Write(b.buf); err != nil {
+	if _, err := b.Write(b.buf); err != nil {
 		return err
 	}
 
@@ -596,5 +596,5 @@ func (b *bufioW) appendSize(c byte, n int64) {
 }
 
 func (b *bufioW) reset(buf []byte, wr io.Writer) {
-	*b = bufioW{buf: buf[:0], wr: wr}
+	*b = bufioW{buf: buf[:0], Writer: wr}
 }
