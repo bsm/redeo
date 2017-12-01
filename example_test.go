@@ -19,8 +19,8 @@ func ExampleServer() {
 		w.AppendBulkString(srv.Info().String())
 	})
 
-	// More handlers; demo usage of redeo.CommandHandlerFunc wrapper
-	srv.Handle("echo", redeo.CommandHandlerFunc(func(c *resp.Command) interface{} {
+	// More handlers; demo usage of redeo.WrapperFunc
+	srv.Handle("echo", redeo.WrapperFunc(func(c *resp.Command) interface{} {
 		if c.ArgN() != 1 {
 			return redeo.ErrWrongNumberOfArgs(c.Name)
 		}
@@ -126,12 +126,12 @@ func ExampleHandlerFunc() {
 	})
 }
 
-func ExampleCommandHandlerFunc() {
+func ExampleWrapperFunc() {
 	mu := sync.RWMutex{}
 	data := make(map[string]string)
 	srv := redeo.NewServer(nil)
 
-	srv.Handle("set", redeo.CommandHandlerFunc(func(c *resp.Command) interface{} {
+	srv.Handle("set", redeo.WrapperFunc(func(c *resp.Command) interface{} {
 		if c.ArgN() != 2 {
 			return redeo.ErrWrongNumberOfArgs(c.Name)
 		}
@@ -146,7 +146,7 @@ func ExampleCommandHandlerFunc() {
 		return 1
 	}))
 
-	srv.Handle("get", redeo.CommandHandlerFunc(func(c *resp.Command) interface{} {
+	srv.Handle("get", redeo.WrapperFunc(func(c *resp.Command) interface{} {
 		if c.ArgN() != 1 {
 			return redeo.ErrWrongNumberOfArgs(c.Name)
 		}

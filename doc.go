@@ -14,8 +14,8 @@ A simple server example with two commands:
 		w.AppendBulkString(srv.Info().String())
 	})
 
-	// More handlers; demo usage of redeo.CommandHandlerFunc
-	srv.Handle("echo", redeo.CommandHandlerFunc(func(c *resp.Command) interface{} {
+	// More handlers; demo usage of redeo.WrapperFunc
+	srv.Handle("echo", redeo.WrapperFunc(func(c *resp.Command) interface{} {
 		if c.ArgN() != 1 {
 			return redeo.ErrWrongNumberOfArgs(c.Name)
 		}

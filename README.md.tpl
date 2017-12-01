@@ -47,5 +47,5 @@ func main() {{ "ExampleHandlerFunc" | code }}
 Redeo also supports command wrappers:
 
 ```go
-func main() {{ "ExampleCommandHandlerFunc" | code }}
+func main() {{ "ExampleWrapperFunc" | code }}
 ```

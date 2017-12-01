@@ -36,14 +36,23 @@ import (
 )
 
 func main() {
-	// Init server and define handlers
 	srv := redeo.NewServer(nil)
+
+	// Define handlers
 	srv.HandleFunc("ping", func(w resp.ResponseWriter, _ *resp.Command) {
 		w.AppendInlineString("PONG")
 	})
 	srv.HandleFunc("info", func(w resp.ResponseWriter, _ *resp.Command) {
 		w.AppendBulkString(srv.Info().String())
 	})
+
+	// More handlers; demo usage of redeo.WrapperFunc
+	srv.Handle("echo", redeo.WrapperFunc(func(c *resp.Command) interface{} {
+		if c.ArgN() != 1 {
+			return redeo.ErrWrongNumberOfArgs(c.Name)
+		}
+		return c.Arg(0)
+	}))
 
 	// Open a new listener
 	lis, err := net.Listen("tcp", ":9736")
@@ -109,7 +118,7 @@ func main() {
 	data := make(map[string]string)
 	srv := redeo.NewServer(nil)
 
-	srv.Handle("set", redeo.CommandHandlerFunc(func(c *resp.Command) interface{} {
+	srv.Handle("set", redeo.WrapperFunc(func(c *resp.Command) interface{} {
 		if c.ArgN() != 2 {
 			return redeo.ErrWrongNumberOfArgs(c.Name)
 		}
@@ -124,7 +133,7 @@ func main() {
 		return 1
 	}))
 
-	srv.Handle("get", redeo.CommandHandlerFunc(func(c *resp.Command) interface{} {
+	srv.Handle("get", redeo.WrapperFunc(func(c *resp.Command) interface{} {
 		if c.ArgN() != 1 {
 			return redeo.ErrWrongNumberOfArgs(c.Name)
 		}

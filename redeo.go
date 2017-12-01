@@ -121,7 +121,7 @@ type HandlerFunc func(w resp.ResponseWriter, c *resp.Command)
 // ServeRedeo calls f(w, c).
 func (f HandlerFunc) ServeRedeo(w resp.ResponseWriter, c *resp.Command) { f(w, c) }
 
-// CommandHandlerFunc implements Handler, accepts a command and must return one of
+// WrapperFunc implements Handler, accepts a command and must return one of
 // the following types:
 //   nil
 //   error
@@ -134,10 +134,10 @@ func (f HandlerFunc) ServeRedeo(w resp.ResponseWriter, c *resp.Command) { f(w, c
 //   resp.CustomResponse instances
 //   slices of any of the above typs
 //   maps containing keys and values of any of the above types
-type CommandHandlerFunc func(c *resp.Command) interface{}
+type WrapperFunc func(c *resp.Command) interface{}
 
 // ServeRedeo implements Handler
-func (f CommandHandlerFunc) ServeRedeo(w resp.ResponseWriter, c *resp.Command) {
+func (f WrapperFunc) ServeRedeo(w resp.ResponseWriter, c *resp.Command) {
 	if err := w.Append(f(c)); err != nil {
 		w.AppendError("ERR " + err.Error())
 	}
