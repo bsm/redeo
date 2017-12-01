@@ -68,15 +68,15 @@ func ExampleRequestReader() {
 	// read command
 	cmd, _ := r.ReadCmd(nil)
 	fmt.Println(cmd.Name)
-	for i := 0; i < cmd.ArgN(); i++ {
-		fmt.Println(i, cmd.Arg(i))
+	for i := 0; i < len(cmd.Args); i++ {
+		fmt.Println(i, cmd.Args[i])
 	}
 
 	// read command, recycle previous instance
 	cmd, _ = r.ReadCmd(cmd)
 	fmt.Println(cmd.Name)
-	for i := 0; i < cmd.ArgN(); i++ {
-		fmt.Println(i, cmd.Arg(i))
+	for i := 0; i < len(cmd.Args); i++ {
+		fmt.Println(i, cmd.Args[i])
 	}
 
 	// Output:

@@ -1,6 +1,7 @@
 package redeo
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/bsm/redeo/resp"
@@ -11,9 +12,19 @@ func UnknownCommand(cmd string) string {
 	return "ERR unknown command '" + cmd + "'"
 }
 
+// ErrUnknownCommand returns an unknown command error
+func ErrUnknownCommand(cmd string) error {
+	return errors.New(UnknownCommand(cmd))
+}
+
 // WrongNumberOfArgs returns an unknown command error string
 func WrongNumberOfArgs(cmd string) string {
 	return "ERR wrong number of arguments for '" + cmd + "' command"
+}
+
+// ErrWrongNumberOfArgs returns an unknown command error
+func ErrWrongNumberOfArgs(cmd string) error {
+	return errors.New(WrongNumberOfArgs(cmd))
 }
 
 // Ping returns a ping handler.
@@ -86,7 +97,8 @@ func (s SubCommands) ServeRedeo(w resp.ResponseWriter, c *resp.Command) {
 
 	firstArg := c.Arg(0).String()
 	if h, ok := s[strings.ToLower(firstArg)]; ok {
-		cmd := resp.NewCommand(c.Name+" "+firstArg, c.Args()[1:]...)
+		cmd := resp.NewCommand(c.Name+" "+firstArg, c.Args[1:]...)
+		cmd.SetContext(c.Context())
 		h.ServeRedeo(w, cmd)
 		return
 	}
@@ -97,7 +109,7 @@ func (s SubCommands) ServeRedeo(w resp.ResponseWriter, c *resp.Command) {
 
 // --------------------------------------------------------------------
 
-// Handler is an abstract handler interface for handling commands
+// Handler is an abstract handler interface for responding to commands
 type Handler interface {
 	// ServeRedeo serves a request.
 	ServeRedeo(w resp.ResponseWriter, c *resp.Command)
@@ -111,7 +123,7 @@ func (f HandlerFunc) ServeRedeo(w resp.ResponseWriter, c *resp.Command) { f(w, c
 
 // --------------------------------------------------------------------
 
-// StreamHandler is an  interface for handling streaming commands
+// StreamHandler is an  interface for responding to streaming commands
 type StreamHandler interface {
 	// ServeRedeoStream serves a streaming request.
 	ServeRedeoStream(w resp.ResponseWriter, c *resp.CommandStream)
@@ -122,3 +134,28 @@ type StreamHandlerFunc func(w resp.ResponseWriter, c *resp.CommandStream)
 
 // ServeRedeoStream calls f(w, c).
 func (f StreamHandlerFunc) ServeRedeoStream(w resp.ResponseWriter, c *resp.CommandStream) { f(w, c) }
+
+// --------------------------------------------------------------------
+
+// CommandHandler is an simplified command handler
+type CommandHandler interface {
+	// ServeRedeoCommand accepts a command and must return one of:
+	//   * nil
+	//   * error
+	//   * string
+	//   * []byte
+	//   * bool
+	//   * float32, float64
+	//   * int, int8, int16, int32, int64
+	//   * uint, uint8, uint16, uint32, uint64
+	//   * resp.CustomResponse instances
+	//   * slices of any of the above typs
+	//   * maps containing keys and values of any of the above types
+	ServeRedeoCommand(c *resp.Command) interface{}
+}
+
+// CommandHandlerFunc is a callback function, implementing Handler.
+type CommandHandlerFunc func(*resp.Command) interface{}
+
+// ServeRedeo calls f(w, c).
+func (f CommandHandlerFunc) ServeRedeoCommand(c *resp.Command) interface{} { return f(c) }

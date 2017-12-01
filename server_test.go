@@ -47,7 +47,7 @@ var _ = Describe("Server", func() {
 				return
 			}
 
-			rd, err := cmd.NextArg()
+			rd, err := cmd.Next()
 			if err != nil {
 				w.AppendErrorf("ERR unable to parse argument: %s", err.Error())
 				return
@@ -332,7 +332,7 @@ func benchmarkServer(b *testing.B, pipe []byte, expN int) {
 
 	srv := NewServer(nil)
 	srv.HandleFunc("echo", func(w resp.ResponseWriter, cmd *resp.Command) {
-		if cmd.ArgN() != 1 {
+		if len(cmd.Args) != 1 {
 			w.AppendError(WrongNumberOfArgs(cmd.Name))
 		}
 		w.AppendInline(cmd.Arg(0))

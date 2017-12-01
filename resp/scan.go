@@ -12,6 +12,143 @@ const (
 	errMsgNotPtr = "destination not a pointer"
 )
 
+// Scan attempts to scan responses into given values
+func (b *bufioR) Scan(vv ...interface{}) error {
+	for _, v := range vv {
+		if err := b.scan(v); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (b *bufioR) scan(dst interface{}) error {
+	pt, err := b.PeekType()
+	if err != nil {
+		return err
+	}
+
+	if pt == TypeError {
+		src, err := b.ReadError()
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf(`resp: server error %q`, src)
+	}
+
+	if scn, ok := dst.(Scannable); ok {
+		return scn.ScanResponse(pt, b)
+	}
+
+	switch pt {
+	case TypeArray:
+		sz, err := b.ReadArrayLen()
+		if err != nil {
+			return err
+		}
+		return b.scanArray(dst, sz)
+	case TypeNil:
+		if err := b.ReadNil(); err != nil {
+			return err
+		}
+		return scanNil(dst)
+	case TypeInt:
+		src, err := b.ReadInt()
+		if err != nil {
+			return err
+		}
+		return scanInt(dst, src)
+	case TypeInline:
+		src, err := b.ReadInlineString()
+		if err != nil {
+			return err
+		}
+		return scanString(dst, src)
+	case TypeBulk:
+		if v, ok := dst.(*[]byte); ok {
+			src, err := b.ReadBulk(nil)
+			if err != nil {
+				return err
+			}
+			return assignBytes(v, src)
+		}
+
+		src, err := b.ReadBulkString()
+		if err != nil {
+			return err
+		}
+		return scanString(dst, src)
+	default:
+		return errBadResponseType
+	}
+}
+
+func (b *bufioR) scanArray(dst interface{}, sz int) error {
+	dpv := reflect.ValueOf(dst)
+
+	// skip array if nil is passed
+	if dpv.Kind() == reflect.Invalid && dst == nil {
+		for i := 0; i < sz; i++ {
+			if err := b.scan(nil); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if dpv.Kind() != reflect.Ptr {
+		return scanErrf(dst, errMsgNotPtr)
+	}
+	if dpv.IsNil() {
+		return scanErrf(dst, errMsgNilPtr)
+	}
+
+	dv := reflect.Indirect(dpv)
+	switch dv.Kind() {
+	case reflect.Slice:
+		if dv.Len() < sz {
+			nv := reflect.MakeSlice(dv.Type(), sz, sz)
+			reflect.Copy(nv, dv)
+			dv.Set(nv)
+		}
+
+		var err error
+		for i := 0; i < sz; i++ {
+			val := dv.Index(i)
+			if val.Kind() != reflect.Ptr && val.CanAddr() {
+				val = val.Addr()
+			}
+			if e := b.scan(val.Interface()); e != nil && err == nil {
+				err = e
+			}
+		}
+		return err
+	case reflect.Map:
+		if sz%2 != 0 {
+			break
+		}
+
+		dt := dv.Type()
+		if dv.IsNil() {
+			dv.Set(reflect.MakeMap(dt))
+		}
+
+		kt, vt := dt.Key(), dt.Elem()
+
+		var err error
+		for i := 0; i < sz; i += 2 {
+			key, val := reflect.New(kt), reflect.New(vt)
+			if e := b.Scan(key.Interface(), val.Interface()); e != nil && err == nil {
+				err = e
+			} else {
+				dv.SetMapIndex(key.Elem(), val.Elem())
+			}
+		}
+		return err
+	}
+
+	return scanErrf(dst, "unsupported conversion from array[%d]", sz)
+}
+
 func scanErrf(dst interface{}, format string, vv ...interface{}) error {
 	vv = append([]interface{}{dst}, vv...)
 	return fmt.Errorf("resp: error on Scan into %T: "+format, vv...)

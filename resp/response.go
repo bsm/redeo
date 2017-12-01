@@ -1,6 +1,15 @@
 package resp
 
-import "io"
+import (
+	"io"
+)
+
+// CustomResponse values implement custom serialization and can be passed
+// to ResponseWriter.Append.
+type CustomResponse interface {
+	// AppendTo must be implemented by custom response types
+	AppendTo(w ResponseWriter)
+}
 
 // ResponseWriter is used by servers to wrap a client connection and send
 // protocol-compatible responses in buffered pipelines.
@@ -25,6 +34,19 @@ type ResponseWriter interface {
 	AppendNil()
 	// AppendOK appends "OK" to the output buffer.
 	AppendOK()
+	// Append automatically serialized given values and appends them to the output buffer.
+	// Supported values include:
+	//   * nil
+	//   * error
+	//   * string
+	//   * []byte
+	//   * bool
+	//   * float32, float64
+	//   * int, int8, int16, int32, int64
+	//   * uint, uint8, uint16, uint32, uint64
+	//   * CustomResponse instances
+	//   * slices and maps of any of the above
+	Append(v interface{}) error
 	// CopyBulk copies n bytes from a reader.
 	// This call may flush pending buffer to prevent overflows.
 	CopyBulk(src io.Reader, n int64) error

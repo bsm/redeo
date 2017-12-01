@@ -37,11 +37,10 @@ func (r *RequestReader) ReadCmd(cmd *Command) (*Command, error) {
 	if cmd == nil {
 		cmd = new(Command)
 	} else {
-		cmd.reset()
+		cmd.Reset()
 	}
 
-	err := parseCommand(cmd, r.r)
-	return cmd, err
+	return cmd, readCommand(cmd, r.r)
 }
 
 // StreamCmd reads the next command as a stream.
@@ -49,11 +48,10 @@ func (r *RequestReader) StreamCmd(cmd *CommandStream) (*CommandStream, error) {
 	if cmd == nil {
 		cmd = new(CommandStream)
 	} else {
-		cmd.reset()
+		cmd.Reset()
 	}
 
-	err := parseCommand(cmd, r.r)
-	return cmd, err
+	return cmd, readCommand(cmd, r.r)
 }
 
 // SkipCmd skips the next command.
