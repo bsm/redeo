@@ -26,7 +26,7 @@ var _ = Describe("Ping", func() {
 
 		w = redeotest.NewRecorder()
 		subject.ServeRedeo(w, resp.NewCommand("PING", resp.CommandArgument("bad"), resp.CommandArgument("args")))
-		Expect(w.Response()).To(Equal("ERR wrong number of arguments for 'PING' command"))
+		Expect(w.Response()).To(MatchError("ERR wrong number of arguments for 'PING' command"))
 	})
 
 })
@@ -61,19 +61,19 @@ var _ = Describe("SubCommands", func() {
 	It("should fail on calls without a sub", func() {
 		w := redeotest.NewRecorder()
 		subject.ServeRedeo(w, resp.NewCommand("CUSTOM"))
-		Expect(w.Response()).To(Equal("ERR wrong number of arguments for 'CUSTOM' command"))
+		Expect(w.Response()).To(MatchError("ERR wrong number of arguments for 'CUSTOM' command"))
 	})
 
 	It("should fail on calls with an unknown sub", func() {
 		w := redeotest.NewRecorder()
 		subject.ServeRedeo(w, resp.NewCommand("CUSTOM", resp.CommandArgument("missing")))
-		Expect(w.Response()).To(Equal("ERR Unknown custom subcommand 'missing'"))
+		Expect(w.Response()).To(MatchError("ERR Unknown custom subcommand 'missing'"))
 	})
 
 	It("should fail on calls with invalid args", func() {
 		w := redeotest.NewRecorder()
 		subject.ServeRedeo(w, resp.NewCommand("CUSTOM", resp.CommandArgument("echo")))
-		Expect(w.Response()).To(Equal("ERR wrong number of arguments for 'CUSTOM echo' command"))
+		Expect(w.Response()).To(MatchError("ERR wrong number of arguments for 'CUSTOM echo' command"))
 	})
 
 	It("should succeed", func() {
