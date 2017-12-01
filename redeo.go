@@ -63,25 +63,25 @@ func Info(s *Server) Handler {
 	})
 }
 
-// Commands returns a command handler.
+// CommandDescriptions returns a command handler.
 // https://redis.io/commands/command
-func Commands(cmds []CommandDetails) Handler {
-	return HandlerFunc(func(w resp.ResponseWriter, c *resp.Command) {
-		w.AppendArrayLen(len(cmds))
+type CommandDescriptions []CommandDescription
 
-		for _, cmd := range cmds {
-			w.AppendArrayLen(6)
-			w.AppendBulkString(strings.ToLower(cmd.Name))
-			w.AppendInt(cmd.Arity)
-			w.AppendArrayLen(len(cmd.Flags))
-			for _, flag := range cmd.Flags {
-				w.AppendBulkString(flag)
-			}
-			w.AppendInt(cmd.FirstKey)
-			w.AppendInt(cmd.LastKey)
-			w.AppendInt(cmd.KeyStepCount)
+func (s CommandDescriptions) ServeRedeo(w resp.ResponseWriter, c *resp.Command) {
+	w.AppendArrayLen(len(s))
+
+	for _, cmd := range s {
+		w.AppendArrayLen(6)
+		w.AppendBulkString(strings.ToLower(cmd.Name))
+		w.AppendInt(cmd.Arity)
+		w.AppendArrayLen(len(cmd.Flags))
+		for _, flag := range cmd.Flags {
+			w.AppendBulkString(flag)
 		}
-	})
+		w.AppendInt(cmd.FirstKey)
+		w.AppendInt(cmd.LastKey)
+		w.AppendInt(cmd.KeyStepCount)
+	}
 }
 
 // SubCommands returns a handler that is parsing sub-commands

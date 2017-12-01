@@ -31,13 +31,13 @@ var _ = Describe("Ping", func() {
 
 })
 
-var _ = Describe("Commands", func() {
-	subject := Commands([]CommandDetails{
+var _ = Describe("CommandDescriptions", func() {
+	subject := CommandDescriptions{
 		{Name: "GeT", Arity: 2, Flags: []string{"readonly", "fast"}, FirstKey: 1, LastKey: 1, KeyStepCount: 1},
 		{Name: "randomkey", Arity: 1, Flags: []string{"readonly", "random"}},
 		{Name: "mset", Arity: -3, Flags: []string{"write", "denyoom"}, FirstKey: 1, LastKey: -1, KeyStepCount: 2},
 		{Name: "quit", Arity: 1},
-	})
+	}
 
 	It("should enumerate", func() {
 		w := redeotest.NewRecorder()

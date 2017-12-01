@@ -51,6 +51,16 @@ func ExampleInfo() {
 	srv.Handle("info", redeo.Info(srv))
 }
 
+func ExampleCommandDescriptions() {
+	srv := redeo.NewServer(nil)
+	srv.Handle("command", redeo.CommandDescriptions{
+		{Name: "get", Arity: 2, Flags: []string{"readonly", "fast"}, FirstKey: 1, LastKey: 1, KeyStepCount: 1},
+		{Name: "randomkey", Arity: 1, Flags: []string{"readonly", "random"}},
+		{Name: "mset", Arity: -3, Flags: []string{"write", "denyoom"}, FirstKey: 1, LastKey: -1, KeyStepCount: 2},
+		{Name: "quit", Arity: 1},
+	})
+}
+
 func ExampleSubCommands() {
 	srv := redeo.NewServer(nil)
 	srv.Handle("custom", redeo.SubCommands{
@@ -74,30 +84,30 @@ func ExampleHandlerFunc() {
 
 	// handle HSET
 	srv.HandleFunc("hset", func(w resp.ResponseWriter, c *resp.Command) {
-		// validate arguments
 		if c.ArgN() != 3 {
 			w.AppendError(redeo.WrongNumberOfArgs(c.Name))
 			return
 		}
 
+		key := c.Arg(0).String()
+		field := c.Arg(1).String()
+		value := c.Arg(2).String()
+
 		// lock for write
 		mu.Lock()
 		defer mu.Unlock()
 
-		// fetch (find-or-create) key
-		hash, ok := myData[c.Arg(0).String()]
+		// fetch hash @ key
+		hash, ok := myData[key]
 		if !ok {
 			hash = make(map[string]string)
-			myData[c.Arg(0).String()] = hash
+			myData[key] = hash
 		}
 
-		// check if field already exists
-		_, ok = hash[c.Arg(1).String()]
+		// check if set and replace
+		_, ok = hash[field]
+		hash[field] = value
 
-		// set field
-		hash[c.Arg(1).String()] = c.Arg(2).String()
-
-		// respond
 		if ok {
 			w.AppendInt(0)
 		} else {
@@ -128,5 +138,22 @@ func ExampleHandlerFunc() {
 		}
 
 		w.AppendBulkString(val)
+	})
+}
+
+func ExampleCommandHandlerFunc() {
+	data := make(map[string]string)
+
+	srv := redeo.NewServer(nil)
+	srv.HandleCommandFunc("get", func(c *resp.Command) interface{} {
+		if c.ArgN() != 1 {
+			return redeo.ErrWrongNumberOfArgs(c.Name)
+		}
+
+		val, ok := data[c.Arg(0).String()]
+		if !ok {
+			return nil
+		}
+		return val
 	})
 }
