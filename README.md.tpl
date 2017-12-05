@@ -43,3 +43,9 @@ More complex handlers:
 ```go
 func main() {{ "ExampleHandlerFunc" | code }}
 ```
+
+Redeo also supports command wrappers:
+
+```go
+func main() {{ "ExampleWrapperFunc" | code }}
+```

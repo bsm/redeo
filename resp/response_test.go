@@ -2,7 +2,10 @@ package resp_test
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -92,6 +95,41 @@ var _ = Describe("ResponseWriter", func() {
 		Expect(subject.CopyBulk(src, 16)).To(Succeed())
 		Expect(subject.Flush()).To(Succeed())
 		Expect(buf.String()).To(Equal("*1\r\n$16\r\nthis is a stream\r\n"))
+	})
+
+	DescribeTable("Append",
+		func(v interface{}, exp string) {
+			subject.Append(v)
+			Expect(subject.Flush()).To(Succeed())
+			Expect(strconv.Quote(buf.String())).To(Equal(strconv.Quote(exp)))
+		},
+
+		Entry("nil", nil, "$-1\r\n"),
+		Entry("error", errors.New("failed"), "-ERR failed\r\n"),
+		Entry("standard error", errors.New("ERR failed"), "-ERR failed\r\n"),
+		Entry("int", 33, ":33\r\n"),
+		Entry("int64", int64(33), ":33\r\n"),
+		Entry("uint", uint(33), ":33\r\n"),
+		Entry("bool (true)", true, ":1\r\n"),
+		Entry("bool (false)", false, ":0\r\n"),
+		Entry("float32", float32(0.1231), "+0.1231\r\n"),
+		Entry("float64", 0.7357, "+0.7357\r\n"),
+		Entry("negative float64", -0.4214, "+-0.4214\r\n"),
+		Entry("string", "many words", "$10\r\nmany words\r\n"),
+		Entry("[]byte", []byte("many words"), "$10\r\nmany words\r\n"),
+		Entry("[]string", []string{"a", "b", "c"}, "*3\r\n$1\r\na\r\n$1\r\nb\r\n$1\r\nc\r\n"),
+		Entry("[][]byte", [][]byte{{'a'}, {'b'}, {'c'}}, "*3\r\n$1\r\na\r\n$1\r\nb\r\n$1\r\nc\r\n"),
+		Entry("[]int", []int{3, 5, 2}, "*3\r\n:3\r\n:5\r\n:2\r\n"),
+		Entry("[]int64", []int64{7, 8, 3}, "*3\r\n:7\r\n:8\r\n:3\r\n"),
+		Entry("[][]int64", [][]int64{{1, 2}, {3, 4}}, "*2\r\n*2\r\n:1\r\n:2\r\n*2\r\n:3\r\n:4\r\n"),
+		Entry("map[string]string", map[string]string{"a": "b"}, "*2\r\n$1\r\na\r\n$1\r\nb\r\n"),
+		Entry("map[int64]float64", map[int64]float64{1: 1.1}, "*2\r\n:1\r\n+1.1\r\n"),
+		Entry("custom response", &customResponse{Host: "foo", Port: 8888}, "$17\r\ncustom 'foo:8888'\r\n"),
+		Entry("custom error", customErrorResponse("bar"), "-WRONG bar\r\n"),
+	)
+
+	It("should reject bad custom types", func() {
+		Expect(subject.Append(time.Time{})).To(MatchError(`resp: unsupported type time.Time`))
 	})
 
 })
@@ -403,3 +441,22 @@ var _ = Describe("ResponseReader", func() {
 	})
 
 })
+
+type customResponse struct {
+	Host string
+	Port int
+}
+
+func (r *customResponse) AppendTo(w resp.ResponseWriter) {
+	w.AppendBulkString(fmt.Sprintf("custom '%s:%d'", r.Host, r.Port))
+}
+
+type customErrorResponse string
+
+func (r customErrorResponse) AppendTo(w resp.ResponseWriter) {
+	w.AppendError(r.Error())
+}
+
+func (r customErrorResponse) Error() string {
+	return "WRONG " + string(r)
+}

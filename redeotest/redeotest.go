@@ -9,6 +9,12 @@ import (
 	"github.com/bsm/redeo/resp"
 )
 
+// ErrorResponse is used to wrap error strings
+type ErrorResponse string
+
+// Error implements error interface
+func (e ErrorResponse) Error() string { return string(e) }
+
 // ResponseRecorder is an implementation of resp.ResponseWriter that
 // is helpful in tests.
 type ResponseRecorder struct {
@@ -44,10 +50,11 @@ func (r *ResponseRecorder) Quoted() string {
 
 // Response returns the first response
 func (r *ResponseRecorder) Response() (interface{}, error) {
-	_ = r.ResponseWriter.Flush()
-
-	rr := resp.NewResponseReader(bytes.NewReader(r.b.Bytes()))
-	return parseResult(rr)
+	vv, err := r.Responses()
+	if err != nil || len(vv) == 0 {
+		return nil, err
+	}
+	return vv[len(vv)-1], nil
 }
 
 // Responses returns all responses
@@ -81,7 +88,11 @@ func parseResult(rr resp.ResponseReader) (interface{}, error) {
 	case resp.TypeInt:
 		return rr.ReadInt()
 	case resp.TypeError:
-		return rr.ReadError()
+		s, err := rr.ReadError()
+		if err != nil {
+			return nil, err
+		}
+		return ErrorResponse(s), nil
 	case resp.TypeNil:
 		return nil, rr.ReadNil()
 	case resp.TypeArray:

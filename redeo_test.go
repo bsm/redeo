@@ -26,18 +26,18 @@ var _ = Describe("Ping", func() {
 
 		w = redeotest.NewRecorder()
 		subject.ServeRedeo(w, resp.NewCommand("PING", resp.CommandArgument("bad"), resp.CommandArgument("args")))
-		Expect(w.Response()).To(Equal("ERR wrong number of arguments for 'PING' command"))
+		Expect(w.Response()).To(MatchError("ERR wrong number of arguments for 'PING' command"))
 	})
 
 })
 
-var _ = Describe("Commands", func() {
-	subject := Commands([]CommandDetails{
+var _ = Describe("CommandDescriptions", func() {
+	subject := CommandDescriptions{
 		{Name: "GeT", Arity: 2, Flags: []string{"readonly", "fast"}, FirstKey: 1, LastKey: 1, KeyStepCount: 1},
 		{Name: "randomkey", Arity: 1, Flags: []string{"readonly", "random"}},
 		{Name: "mset", Arity: -3, Flags: []string{"write", "denyoom"}, FirstKey: 1, LastKey: -1, KeyStepCount: 2},
 		{Name: "quit", Arity: 1},
-	})
+	}
 
 	It("should enumerate", func() {
 		w := redeotest.NewRecorder()
@@ -61,19 +61,19 @@ var _ = Describe("SubCommands", func() {
 	It("should fail on calls without a sub", func() {
 		w := redeotest.NewRecorder()
 		subject.ServeRedeo(w, resp.NewCommand("CUSTOM"))
-		Expect(w.Response()).To(Equal("ERR wrong number of arguments for 'CUSTOM' command"))
+		Expect(w.Response()).To(MatchError("ERR wrong number of arguments for 'CUSTOM' command"))
 	})
 
 	It("should fail on calls with an unknown sub", func() {
 		w := redeotest.NewRecorder()
 		subject.ServeRedeo(w, resp.NewCommand("CUSTOM", resp.CommandArgument("missing")))
-		Expect(w.Response()).To(Equal("ERR Unknown custom subcommand 'missing'"))
+		Expect(w.Response()).To(MatchError("ERR Unknown custom subcommand 'missing'"))
 	})
 
 	It("should fail on calls with invalid args", func() {
 		w := redeotest.NewRecorder()
 		subject.ServeRedeo(w, resp.NewCommand("CUSTOM", resp.CommandArgument("echo")))
-		Expect(w.Response()).To(Equal("ERR wrong number of arguments for 'CUSTOM echo' command"))
+		Expect(w.Response()).To(MatchError("ERR wrong number of arguments for 'CUSTOM echo' command"))
 	})
 
 	It("should succeed", func() {

@@ -74,14 +74,14 @@ func (m *streamMatcher) Match(actual interface{}) (bool, error) {
 	buf := new(bytes.Buffer)
 	m.actual = []string{cmd.Name}
 
-	for i := 0; i < cmd.ArgN(); i++ {
-		ar, err := cmd.NextArg()
+	for cmd.More() {
+		arg, err := cmd.Next()
 		if err != nil {
-			return false, fmt.Errorf("MatchStream failed to parse argument #%d: %v", i+1, err)
+			return false, fmt.Errorf("MatchStream failed to parse argument: %v", err)
 		}
 
 		buf.Reset()
-		if _, err = buf.ReadFrom(ar); err != nil {
+		if _, err = buf.ReadFrom(arg); err != nil {
 			return false, fmt.Errorf("MatchStream failed to read argument into buffer: %v", err)
 		}
 		m.actual = append(m.actual, buf.String())
@@ -98,8 +98,8 @@ func (m *streamMatcher) NegatedFailureMessage(actual interface{}) string {
 
 func cmdToSlice(cmd *resp.Command) []string {
 	res := []string{cmd.Name}
-	for _, arg := range cmd.Args() {
-		res = append(res, string(arg))
+	for _, arg := range cmd.Args {
+		res = append(res, arg.String())
 	}
 	return res
 }

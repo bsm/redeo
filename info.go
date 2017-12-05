@@ -11,8 +11,8 @@ import (
 	"github.com/bsm/redeo/info"
 )
 
-// CommandDetails describes supported commands
-type CommandDetails struct {
+// CommandDescription describes supported commands
+type CommandDescription struct {
 	// Name is the command name, returned as a lowercase string.
 	Name string
 

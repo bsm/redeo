@@ -34,55 +34,148 @@ type Command struct {
 	// Name refers to the command name
 	Name string
 
-	baseCmd
+	// Args returns arguments
+	Args []CommandArgument
+
+	ctx context.Context
 }
 
 // NewCommand returns a new command instance;
 // useful for tests
-func NewCommand(name string, argv ...CommandArgument) *Command {
-	return &Command{
-		Name: name,
-		baseCmd: baseCmd{
-			argc: len(argv),
-			argv: argv,
-		},
-	}
+func NewCommand(name string, args ...CommandArgument) *Command {
+	return &Command{Name: name, Args: args}
 }
 
-// Arg returns the command argument at position i
-func (c *Command) Arg(i int) CommandArgument {
-	if i > -1 && i < c.argc {
-		return c.Args()[i]
+// Arg returns the Nth argument
+func (c *Command) Arg(n int) CommandArgument {
+	if n > -1 && n < len(c.Args) {
+		return c.Args[n]
 	}
 	return nil
 }
 
-// Args returns all command argument values
-func (c *Command) Args() []CommandArgument { return c.argv }
-
-func (c *Command) updateName() {
-	c.Name = string(c.name)
+// ArgN returns the number of arguments
+func (c *Command) ArgN() int {
+	return len(c.Args)
 }
 
-func (c *Command) reset() {
-	c.baseCmd.reset()
-	*c = Command{baseCmd: c.baseCmd}
-}
-
-func (c *Command) parseMultiBulk(r *bufioR) (bool, error) {
-	ok, err := c.baseCmd.parseMultiBulk(r)
-	if err != nil || !ok {
-		return ok, err
+// Reset discards all data and resets all state
+func (c *Command) Reset() {
+	args := c.Args
+	for i, v := range args {
+		args[i] = v[:0]
 	}
+	*c = Command{Args: args[:0]}
+}
 
-	c.grow(c.argc)
-	for i := 0; i < c.argc; i++ {
-		c.argv[i], err = r.ReadBulk(c.argv[i])
+// Context returns the context
+func (c *Command) Context() context.Context {
+	if c.ctx != nil {
+		return c.ctx
+	}
+	return context.Background()
+}
+
+// SetContext sets the request context.
+func (c *Command) SetContext(ctx context.Context) {
+	if ctx != nil {
+		c.ctx = ctx
+	}
+}
+
+func (c *Command) grow(n int) {
+	if d := n - cap(c.Args); d > 0 {
+		c.Args = c.Args[:cap(c.Args)]
+		c.Args = append(c.Args, make([]CommandArgument, d)...)
+	} else {
+		c.Args = c.Args[:n]
+	}
+}
+
+func (c *Command) readMultiBulk(r *bufioR, name string, nargs int) error {
+	c.Name = name
+	c.grow(nargs)
+
+	var err error
+	for i := 0; i < nargs; i++ {
+		c.Args[i], err = r.ReadBulk(c.Args[i])
 		if err != nil {
-			return false, err
+			return err
 		}
 	}
+	return nil
+}
+
+func (c *Command) readInline(r *bufioR) (bool, error) {
+	line, err := r.ReadLine()
+	if err != nil {
+		return false, err
+	}
+
+	var name []byte
+	var nargs int
+
+	inWord := false
+	for _, x := range line.Trim() {
+		switch x {
+		case ' ', '\t':
+			inWord = false
+		default:
+			if !inWord && name != nil {
+				nargs++
+				c.grow(nargs)
+			}
+			if pos := nargs - 1; pos > -1 {
+				c.Args[pos] = append(c.Args[pos], x)
+			} else {
+				name = append(name, x)
+			}
+			inWord = true
+		}
+	}
+
+	if len(name) == 0 {
+		return false, nil
+	}
+
+	c.Name = string(name)
 	return true, nil
+}
+
+// --------------------------------------------------------------------
+
+func readCommand(c interface {
+	readInline(*bufioR) (bool, error)
+	readMultiBulk(*bufioR, string, int) error
+}, r *bufioR) error {
+	x, err := r.PeekByte()
+	if err != nil {
+		return err
+	}
+
+	if x == '*' {
+		sz, err := r.ReadArrayLen()
+		if err != nil {
+			return err
+		} else if sz < 1 {
+			return readCommand(c, r)
+		}
+
+		name, err := r.ReadBulkString()
+		if err != nil {
+			return err
+		}
+
+		return c.readMultiBulk(r, name, sz-1)
+	}
+
+	if ok, err := c.readInline(r); err != nil {
+		return err
+	} else if !ok {
+		return readCommand(c, r)
+	}
+
+	return nil
 }
 
 // --------------------------------------------------------------------
@@ -94,31 +187,44 @@ type CommandStream struct {
 	// Name refers to the command name
 	Name string
 
-	baseCmd
+	ctx context.Context
 
-	p int
-	r *bufioR
+	inline   Command
+	isInline bool
 
-	cur io.ReadCloser
+	nargs int
+	pos   int
+	arg   io.ReadCloser
+
+	rd *bufioR
+}
+
+// Reset discards all data and resets all state
+func (c *CommandStream) Reset() {
+	c.inline.Reset()
+	*c = CommandStream{inline: c.inline}
 }
 
 // Discard discards the (remaining) arguments
 func (c *CommandStream) Discard() error {
-	if c.p < len(c.argv) {
-		c.p = len(c.argv)
-		return nil
-	}
-
-	var err error
-	if c.cur != nil {
-		if e := c.cur.Close(); e != nil {
-			err = e
+	if c.isInline {
+		if c.pos < len(c.inline.Args) {
+			c.pos = len(c.inline.Args)
+			return nil
 		}
 	}
 
-	if c.r != nil {
-		for ; c.p < c.argc; c.p++ {
-			if e := c.r.SkipBulk(); e != nil {
+	var err error
+	if c.arg != nil {
+		if e := c.arg.Close(); e != nil {
+			err = e
+		}
+		c.arg = nil
+	}
+
+	if c.rd != nil {
+		for ; c.pos < c.nargs; c.pos++ {
+			if e := c.rd.SkipBulk(); e != nil {
 				err = e
 			}
 		}
@@ -126,92 +232,44 @@ func (c *CommandStream) Discard() error {
 	return err
 }
 
-// NextArg returns the next argument as an io.Reader
-func (c *CommandStream) NextArg() (io.Reader, error) {
-	if c.p < len(c.argv) {
-		rd := bytes.NewReader(c.argv[c.p])
-		c.p++
-		return rd, nil
-	} else if c.r != nil && c.p < c.argc {
-		var err error
-		c.cur, err = c.r.StreamBulk()
-		c.p++
-		return c.cur, err
+// ArgN returns the number of arguments
+func (c *CommandStream) ArgN() int {
+	if c.isInline {
+		return c.inline.ArgN()
 	}
-	return nil, errNoMoreArgs
+	return c.nargs
 }
 
-func (c *CommandStream) updateName() {
-	c.Name = string(c.name)
+// More returns true if there are unread arguments
+func (c *CommandStream) More() bool {
+	return c.pos < c.ArgN()
 }
 
-func (c *CommandStream) reset() {
-	c.baseCmd.reset()
-	*c = CommandStream{baseCmd: c.baseCmd}
-}
-
-func (c *CommandStream) parseMultiBulk(r *bufioR) (bool, error) {
-	ok, err := c.baseCmd.parseMultiBulk(r)
-	if err != nil || !ok {
-		return ok, err
-	}
-
-	if c.argc > 0 {
-		c.r = r
-	}
-	return true, nil
-}
-
-// --------------------------------------------------------------------
-
-type anyCmd interface {
-	parseMultiBulk(*bufioR) (bool, error)
-	parseInline(*bufioR) (bool, error)
-	updateName()
-}
-
-func parseCommand(c anyCmd, r *bufioR) error {
-	x, err := r.PeekByte()
-	if err != nil {
-		return err
-	}
-
-	if x == '*' {
-		if ok, err := c.parseMultiBulk(r); err != nil {
-			return err
-		} else if !ok {
-			return parseCommand(c, r)
+// Next returns the next argument as an io.Reader
+func (c *CommandStream) Next() (io.Reader, error) {
+	if c.ctx != nil {
+		if err := c.ctx.Err(); err != nil {
+			return nil, err
 		}
-		c.updateName()
-		return nil
+	}
+	if !c.More() {
+		return nil, errNoMoreArgs
 	}
 
-	if ok, err := c.parseInline(r); err != nil {
-		return err
-	} else if !ok {
-		return parseCommand(c, r)
+	if c.isInline {
+		arg := bytes.NewReader(c.inline.Args[c.pos])
+		c.pos++
+		return arg, nil
 	}
-	c.updateName()
-	return nil
-}
 
-// --------------------------------------------------------------------
-
-type baseCmd struct {
-	argc int
-	argv []CommandArgument
-	name []byte
-
-	ctx context.Context
-}
-
-// ArgN returns the number of command arguments
-func (c *baseCmd) ArgN() int {
-	return c.argc
+	var err error
+	c.arg, err = c.rd.StreamBulk()
+	c.pos++
+	return c.arg, err
 }
 
 // Context returns the context
-func (c *baseCmd) Context() context.Context {
+func (c *CommandStream) Context() context.Context {
 	if c.ctx != nil {
 		return c.ctx
 	}
@@ -219,72 +277,25 @@ func (c *baseCmd) Context() context.Context {
 }
 
 // SetContext sets the request context.
-func (c *baseCmd) SetContext(ctx context.Context) {
+func (c *CommandStream) SetContext(ctx context.Context) {
 	if ctx != nil {
 		c.ctx = ctx
 	}
 }
 
-func (c *baseCmd) parseMultiBulk(r *bufioR) (bool, error) {
-	n, err := r.ReadArrayLen()
-	if err != nil || n < 1 {
-		return false, err
-	}
+func (c *CommandStream) readMultiBulk(r *bufioR, name string, nargs int) error {
+	c.Name = name
+	c.nargs = nargs
+	c.rd = r
+	return nil
+}
 
-	c.argc = n - 1
-	c.name, err = r.ReadBulk(c.name)
-	if err != nil {
-		return false, err
-	}
+func (c *CommandStream) readInline(r *bufioR) (bool, error) {
+	c.isInline = true
 
+	if ok, err := c.inline.readInline(r); err != nil || !ok {
+		return ok, err
+	}
+	c.Name = c.inline.Name
 	return true, nil
-}
-
-func (c *baseCmd) parseInline(r *bufioR) (bool, error) {
-	line, err := r.ReadLine()
-	if err != nil {
-		return false, err
-	}
-
-	hasName := false
-	inWord := false
-	for _, x := range line.Trim() {
-		switch x {
-		case ' ', '\t':
-			inWord = false
-		default:
-			if !inWord && hasName {
-				c.argc++
-				c.grow(c.argc)
-			}
-			if pos := c.argc - 1; pos > -1 {
-				c.argv[pos] = append(c.argv[pos], x)
-			} else {
-				hasName = true
-				c.name = append(c.name, x)
-			}
-			inWord = true
-		}
-	}
-	return hasName, nil
-}
-
-func (c *baseCmd) grow(n int) {
-	if d := n - cap(c.argv); d > 0 {
-		c.argv = c.argv[:cap(c.argv)]
-		c.argv = append(c.argv, make([]CommandArgument, d)...)
-	} else {
-		c.argv = c.argv[:n]
-	}
-}
-
-func (c *baseCmd) reset() {
-	argv := c.argv
-	for i, v := range argv {
-		argv[i] = v[:0]
-	}
-	*c = baseCmd{
-		argv: argv[:0],
-		name: c.name[:0],
-	}
 }
