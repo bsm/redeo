@@ -148,7 +148,7 @@ func initServer() *redeo.Server {
 
 	s.HandleFunc("fuzzmb", func(w resp.ResponseWriter, c *resp.Command) {
 		sz := 0
-		for _, a := range c.Args() {
+		for _, a := range c.Args {
 			sz += len(a)
 		}
 
@@ -166,7 +166,7 @@ func initServer() *redeo.Server {
 	s.HandleStreamFunc("fuzzstream", func(w resp.ResponseWriter, c *resp.CommandStream) {
 		if c.ArgN() != 0 {
 			for i := 0; i < rand.Intn(c.ArgN()); i++ {
-				rd, err := c.NextArg()
+				rd, err := c.Next()
 				if err != nil {
 					w.AppendErrorf("ERR %v", err)
 					return
