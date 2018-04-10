@@ -19,14 +19,3 @@
 # [[override]]
 #  name = "github.com/x/y"
 #  version = "2.4.0"
-
-
-[[constraint]]
-  branch = "master"
-  name = "github.com/bsm/pool"
-
-[[constraint]]
-  name = "github.com/onsi/ginkgo"
-
-[[constraint]]
-  name = "github.com/onsi/gomega"

@@ -8,6 +8,7 @@ install:
 script:
   - make default fuzz fuzzrace
 go:
+  - 1.10.x
   - 1.9.x
   - 1.8.x
 cache:

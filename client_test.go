@@ -6,11 +6,6 @@ import (
 )
 
 var _ = Describe("Client", func() {
-	var subject *Client
-
-	BeforeEach(func() {
-		subject = newClient(&mockConn{Port: 10001})
-	})
 
 	It("should generate IDs", func() {
 		a, b := newClient(&mockConn{}), newClient(&mockConn{})

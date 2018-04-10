@@ -78,7 +78,7 @@ func ExampleSubCommands() {
 	})
 }
 
-func ExamplePubSub() {
+func ExamplePubSubBroker() {
 	broker := redeo.NewPubSubBroker()
 
 	srv := redeo.NewServer(nil)
