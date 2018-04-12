@@ -203,7 +203,7 @@ func (b *bufioR) PeekLine(offset int) (bufioLn, error) {
 	// try to find the end of the line
 	start := b.r + offset
 	if start < b.w {
-		index = bytes.IndexByte(b.buf[start:b.w], '\n')
+		index = bytes.IndexByte(b.buf[start:b.w], '\r')
 	}
 
 	// try to read more data into the buffer if not in the buffer
@@ -213,7 +213,7 @@ func (b *bufioR) PeekLine(offset int) (bufioLn, error) {
 		}
 		start = b.r + offset
 		if start < b.w {
-			index = bytes.IndexByte(b.buf[start:b.w], '\n')
+			index = bytes.IndexByte(b.buf[start:b.w], '\r')
 		}
 	}
 
@@ -221,7 +221,7 @@ func (b *bufioR) PeekLine(offset int) (bufioLn, error) {
 	if index < 0 {
 		return nil, errInlineRequestTooLong
 	}
-	return bufioLn(b.buf[start : start+index+1]), nil
+	return bufioLn(b.buf[start : start+index+2]), nil
 }
 
 // ReadLine returns the next line until CRLF
@@ -339,7 +339,7 @@ type bufioLn []byte
 func (ln bufioLn) Trim() bufioLn {
 	n := len(ln)
 	for ; n > 0; n-- {
-		if c := ln[n-1]; c != '\r' && c != '\n' {
+		if c := ln[n-1]; !asciiSpace[c] {
 			break
 		}
 	}
@@ -353,13 +353,12 @@ func (ln bufioLn) FirstWord() string {
 	data := ln.Trim()
 
 	for i, c := range data {
-		switch c {
-		case ' ', '\t':
+		if asciiSpace[c] {
 			if inWord {
 				return string(data[offset:i])
 			}
 			inWord = false
-		default:
+		} else {
 			if !inWord {
 				offset = i
 			}
