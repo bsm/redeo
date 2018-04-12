@@ -64,6 +64,16 @@ type Conn interface {
 	madeByRedeo()
 }
 
+// Wrap wraps a single network connection.
+func Wrap(cn net.Conn) Conn {
+	return &conn{
+		Conn: cn,
+
+		RequestWriter:  resp.NewRequestWriter(cn),
+		ResponseReader: resp.NewResponseReader(cn),
+	}
+}
+
 type conn struct {
 	net.Conn
 

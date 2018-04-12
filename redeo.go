@@ -33,7 +33,7 @@ func Ping() Handler {
 	return HandlerFunc(func(w resp.ResponseWriter, c *resp.Command) {
 		switch c.ArgN() {
 		case 0:
-			w.AppendBulkString("PONG")
+			w.AppendInlineString("PONG")
 		case 1:
 			w.AppendBulk(c.Arg(0))
 		default:
@@ -59,7 +59,14 @@ func Echo() Handler {
 // https://redis.io/commands/info
 func Info(s *Server) Handler {
 	return HandlerFunc(func(w resp.ResponseWriter, c *resp.Command) {
-		w.AppendBulkString(s.Info().String())
+		info := s.Info()
+		resp := ""
+		if c.ArgN() == 1 {
+			resp = info.Find(c.Args[0].String()).String()
+		} else {
+			resp = info.String()
+		}
+		w.AppendBulkString(resp)
 	})
 }
 
