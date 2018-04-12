@@ -112,30 +112,21 @@ func (c *Command) readInline(r *bufioR) (bool, error) {
 		return false, err
 	}
 
+	data := line.Trim()
+
 	var name []byte
-	var nargs int
+	var n int
 
-	inWord := false
-	for _, x := range line.Trim() {
-		switch x {
-		case ' ', '\t':
-			inWord = false
-		default:
-			if !inWord && name != nil {
-				nargs++
-				c.grow(nargs)
-			}
-			if pos := nargs - 1; pos > -1 {
-				c.Args[pos] = append(c.Args[pos], x)
-			} else {
-				name = append(name, x)
-			}
-			inWord = true
-		}
-	}
-
+	name, n = appendArgument(name, data)
+	data = data[n:]
 	if len(name) == 0 {
 		return false, nil
+	}
+
+	for pos := 0; len(data) != 0; pos++ {
+		c.grow(pos + 1)
+		c.Args[pos], n = appendArgument(c.Args[pos], data)
+		data = data[n:]
 	}
 
 	c.Name = string(name)

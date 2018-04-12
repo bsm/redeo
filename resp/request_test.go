@@ -38,6 +38,15 @@ var _ = Describe("RequestReader", func() {
 		Expect(cmd).To(MatchCommand(""))
 	})
 
+	It("should read quoted inline requests", func() {
+		r := setup("try \"double \\x71uotes\" \t 'single quotes' \r\n")
+
+		cmd, err := r.ReadCmd(nil)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(cmd).To(MatchCommand("try", "double quotes", "single quotes"))
+		Expect(cmd.Args).To(HaveLen(2))
+	})
+
 	It("should reject inline commands that are larger than the buffer", func() {
 		r := setup("ECHO " + strings.Repeat("x", 100000) + "\r\n")
 		_, err := r.ReadCmd(nil)

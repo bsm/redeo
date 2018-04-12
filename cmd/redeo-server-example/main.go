@@ -28,6 +28,7 @@ func run() error {
 	broker := redeo.NewPubSubBroker()
 	srv := redeo.NewServer(nil)
 	srv.Handle("ping", redeo.Ping())
+	srv.Handle("echo", redeo.Echo())
 	srv.Handle("info", redeo.Info(srv))
 	srv.Handle("publish", broker.Publish())
 	srv.Handle("subscribe", broker.Subscribe())
