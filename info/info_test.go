@@ -12,11 +12,11 @@ var _ = Describe("Registry", func() {
 
 	BeforeEach(func() {
 		subject = New()
-		subject.Section("Server").Register("version", StringValue("1.0.1"))
-		subject.Section("Server").Register("date", StringValue("2014-11-11"))
-		subject.Section("Clients").Register("count", StringValue("17"))
-		subject.Section("Clients").Register("total", StringValue("123456"))
-		subject.Section("Empty")
+		subject.FetchSection("Server").Register("version", StaticString("1.0.1"))
+		subject.FetchSection("Server").Register("date", StaticString("2014-11-11"))
+		subject.FetchSection("Clients").Register("count", StaticString("17"))
+		subject.FetchSection("Clients").Register("total", StaticString("123456"))
+		subject.FetchSection("Empty")
 	})
 
 	It("should generate info strings", func() {
@@ -25,10 +25,26 @@ var _ = Describe("Registry", func() {
 	})
 
 	It("should clear", func() {
-		subject.Section("Clients").Clear()
+		subject.FetchSection("Clients").Clear()
 		Expect(subject.sections[1].kvs).To(BeEmpty())
 		subject.Clear()
 		Expect(subject.sections).To(BeEmpty())
+	})
+
+	It("should replace", func() {
+		subject.FetchSection("Server").Replace(func(s *Section) {
+			s.Register("test", StaticString("string"))
+		})
+		s := subject.FindSection("server").String()
+		Expect(s).To(Equal("# Server\ntest:string\n"))
+	})
+
+	It("should generate section strings", func() {
+		s := subject.FindSection("clients").String()
+		Expect(s).To(Equal("# Clients\ncount:17\ntotal:123456\n"))
+
+		s = subject.FindSection("unknown").String()
+		Expect(s).To(Equal(""))
 	})
 
 })

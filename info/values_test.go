@@ -5,32 +5,37 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("StringValue", func() {
+var _ = Describe("StaticString", func() {
+	var _ Value = StaticString("")
+
 	It("should generate strings", func() {
-		var v Value = StringValue("x")
-		Expect(v.String()).To(Equal("x"))
+		Expect(StaticString("x").String()).To(Equal("x"))
 	})
 })
 
-var _ = Describe("IntValue", func() {
+var _ = Describe("StaticInt", func() {
+	var _ Value = StaticInt(0)
+
 	It("should generate strings", func() {
-		var v Value = IntValue(12)
-		Expect(v.String()).To(Equal("12"))
+		Expect(StaticInt(12).String()).To(Equal("12"))
 	})
 })
 
 var _ = Describe("Callback", func() {
+	var _ Value = Callback(nil)
+
 	It("should generate strings", func() {
-		var v Value = Callback(func() string { return "x" })
-		Expect(v.String()).To(Equal("x"))
+		cb := Callback(func() string { return "x" })
+		Expect(cb.String()).To(Equal("x"))
 	})
 })
 
-var _ = Describe("Counter", func() {
-	var subject *Counter
+var _ = Describe("IntValue", func() {
+	var subject *IntValue
+	var _ Value = subject
 
 	BeforeEach(func() {
-		subject = NewCounter()
+		subject = NewIntValue(0)
 	})
 
 	It("should have accessors", func() {
@@ -44,7 +49,24 @@ var _ = Describe("Counter", func() {
 	})
 
 	It("should generate strings", func() {
-		var v Value = subject
-		Expect(v.String()).To(Equal("0"))
+		Expect(subject.String()).To(Equal("0"))
+	})
+})
+
+var _ = Describe("StringValue", func() {
+	var subject *StringValue
+	var _ Value = subject
+
+	BeforeEach(func() {
+		subject = NewStringValue("x")
+	})
+
+	It("should have accessors", func() {
+		subject.Set("z")
+		Expect(subject.String()).To(Equal("z"))
+	})
+
+	It("should generate strings", func() {
+		Expect(subject.String()).To(Equal("x"))
 	})
 })

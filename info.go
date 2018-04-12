@@ -1,7 +1,10 @@
 package redeo
 
 import (
+	cryptorand "crypto/rand"
+	"encoding/hex"
 	"fmt"
+	mathrand "math/rand"
 	"os"
 	"sort"
 	"strconv"
@@ -94,8 +97,8 @@ type ServerInfo struct {
 	pid       int
 
 	clients     clientStats
-	connections *info.Counter
-	commands    *info.Counter
+	connections *info.IntValue
+	commands    *info.IntValue
 }
 
 // newServerInfo creates a new server info container
@@ -103,17 +106,21 @@ func newServerInfo() *ServerInfo {
 	info := &ServerInfo{
 		registry:    info.New(),
 		startTime:   time.Now(),
-		connections: info.NewCounter(),
-		commands:    info.NewCounter(),
+		connections: info.NewIntValue(0),
+		commands:    info.NewIntValue(0),
 		clients:     clientStats{stats: make(map[uint64]*ClientInfo)},
 	}
-	return info.withDefaults()
+	info.initDefaults()
+	return info
 }
 
 // ------------------------------------------------------------------------
 
-// Section finds-or-creates an info section
-func (i *ServerInfo) Section(name string) *info.Section { return i.registry.Section(name) }
+// Fetch finds or creates an info section. This method is not thread-safe.
+func (i *ServerInfo) Fetch(name string) *info.Section { return i.registry.FetchSection(name) }
+
+// Find finds an info section by name.
+func (i *ServerInfo) Find(name string) *info.Section { return i.registry.FindSection(name) }
 
 // String generates an info string
 func (i *ServerInfo) String() string { return i.registry.String() }
@@ -133,9 +140,15 @@ func (i *ServerInfo) TotalConnections() int64 { return i.connections.Value() }
 func (i *ServerInfo) TotalCommands() int64 { return i.commands.Value() }
 
 // Apply default info
-func (i *ServerInfo) withDefaults() *ServerInfo {
-	server := i.Section("Server")
-	server.Register("process_id", info.IntValue(os.Getpid()))
+func (i *ServerInfo) initDefaults() {
+	runID := make([]byte, 20)
+	if _, err := cryptorand.Read(runID); err != nil {
+		_, _ = mathrand.Read(runID)
+	}
+
+	server := i.Fetch("Server")
+	server.Register("process_id", info.StaticInt(int64(os.Getpid())))
+	server.Register("run_id", info.StaticString(hex.EncodeToString(runID)))
 	server.Register("uptime_in_seconds", info.Callback(func() string {
 		d := time.Since(i.startTime) / time.Second
 		return strconv.FormatInt(int64(d), 10)
@@ -145,16 +158,14 @@ func (i *ServerInfo) withDefaults() *ServerInfo {
 		return strconv.FormatInt(int64(d), 10)
 	}))
 
-	clients := i.Section("Clients")
+	clients := i.Fetch("Clients")
 	clients.Register("connected_clients", info.Callback(func() string {
 		return strconv.Itoa(i.NumClients())
 	}))
 
-	stats := i.Section("Stats")
+	stats := i.Fetch("Stats")
 	stats.Register("total_connections_received", i.connections)
 	stats.Register("total_commands_processed", i.commands)
-
-	return i
 }
 
 func (i *ServerInfo) register(c *Client) {
