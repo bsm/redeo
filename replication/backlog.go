@@ -2,6 +2,8 @@ package replication
 
 import (
 	"errors"
+	"fmt"
+	"io"
 	"sync"
 
 	"github.com/bsm/redeo/resp"
@@ -9,7 +11,7 @@ import (
 
 const minBacklogSize = 1 << 17 // 128KiB
 
-var errOffsetOutOfBounds = errors.New("requested offset is out of bounds")
+var ErrOffsetOutOfBounds = errors.New("redeo: requested offset is out of bounds")
 
 type backlog struct {
 	buffer  []byte
@@ -35,14 +37,34 @@ func (b *backlog) Feed(cmd *resp.Command) error {
 	return nil
 }
 
+// Resize resizes the backlog by recreating the buffer
+func (b *backlog) Resize(size int) {
+	if size < minBacklogSize {
+		size = minBacklogSize
+	}
+
+	buffer := make([]byte, size)
+
+	b.Lock()
+	defer b.Unlock()
+
+	fmt.Println(len(b.buffer), size)
+	if len(b.buffer) == size {
+		return
+	}
+
+	b.buffer = buffer
+	b.offset += int64(b.histlen)
+	b.histlen = 0
+	b.pos = 0
+}
+
 // Write implements io.Writer interface.
 func (b *backlog) Write(data []byte) (n int, _ error) {
 	b.Lock()
 	defer b.Unlock()
 
 	bsize := len(b.buffer)
-	b.offset += int64(len(data))
-
 	for p := data; len(p) > 0; {
 		written := copy(b.buffer[b.pos:], p)
 		if b.pos += written; b.pos == bsize {
@@ -54,24 +76,41 @@ func (b *backlog) Write(data []byte) (n int, _ error) {
 		p = p[written:]
 	}
 
-	if b.histlen > bsize {
+	if delta := b.histlen - bsize; delta > 0 {
+		b.offset += int64(delta)
 		b.histlen = bsize
 	}
 	return
 }
 
-// MinOffset returns the minimum stored offset.
-func (b *backlog) MinOffset() int64 {
+// ReadAt implements io.ReaderAt interface.
+func (b *backlog) ReadAt(p []byte, off int64) (n int, err error) {
 	b.RLock()
-	n := b.offset - int64(b.histlen)
-	b.RUnlock()
-	return n
-}
+	defer b.RUnlock()
 
-// MaxOffset returns the maximum stored offset.
-func (b *backlog) MaxOffset() int64 {
-	b.RLock()
-	n := b.offset
-	b.RUnlock()
-	return n
+	if off < b.offset {
+		return 0, ErrOffsetOutOfBounds
+	}
+	if off > b.offset+int64(b.histlen) {
+		return 0, ErrOffsetOutOfBounds
+	}
+
+	if blen := len(b.buffer); b.histlen < blen {
+		n += copy(p, b.buffer[int(off-b.offset):b.pos])
+	} else if b.histlen == blen && b.pos == 0 {
+		n += copy(p, b.buffer[int(off-b.offset):])
+	} else {
+		o1, o2 := int(off-b.offset)+b.pos, 0
+		if o1 < blen {
+			n += copy(p, b.buffer[o1:])
+		} else {
+			o2 = o1 - blen
+		}
+		n += copy(p[n:], b.buffer[o2:b.pos])
+	}
+
+	if n < len(p) {
+		err = io.EOF
+	}
+	return
 }
