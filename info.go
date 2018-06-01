@@ -1,10 +1,7 @@
 package redeo
 
 import (
-	cryptorand "crypto/rand"
-	"encoding/hex"
 	"fmt"
-	mathrand "math/rand"
 	"os"
 	"sort"
 	"strconv"
@@ -102,7 +99,7 @@ type ServerInfo struct {
 }
 
 // newServerInfo creates a new server info container
-func newServerInfo() *ServerInfo {
+func newServerInfo(runID string) *ServerInfo {
 	info := &ServerInfo{
 		registry:    info.New(),
 		startTime:   time.Now(),
@@ -110,7 +107,7 @@ func newServerInfo() *ServerInfo {
 		commands:    info.NewIntValue(0),
 		clients:     clientStats{stats: make(map[uint64]*ClientInfo)},
 	}
-	info.initDefaults()
+	info.initDefaults(runID)
 	return info
 }
 
@@ -140,15 +137,10 @@ func (i *ServerInfo) TotalConnections() int64 { return i.connections.Value() }
 func (i *ServerInfo) TotalCommands() int64 { return i.commands.Value() }
 
 // Apply default info
-func (i *ServerInfo) initDefaults() {
-	runID := make([]byte, 20)
-	if _, err := cryptorand.Read(runID); err != nil {
-		_, _ = mathrand.Read(runID)
-	}
-
+func (i *ServerInfo) initDefaults(runID string) {
 	server := i.Fetch("Server")
 	server.Register("process_id", info.StaticInt(int64(os.Getpid())))
-	server.Register("run_id", info.StaticString(hex.EncodeToString(runID)))
+	server.Register("run_id", info.StaticString(runID))
 	server.Register("uptime_in_seconds", info.Callback(func() string {
 		d := time.Since(i.startTime) / time.Second
 		return strconv.FormatInt(int64(d), 10)

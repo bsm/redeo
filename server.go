@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bsm/redeo/internal/util"
 	"github.com/bsm/redeo/resp"
 )
 
@@ -13,6 +14,7 @@ import (
 type Server struct {
 	config *Config
 	info   *ServerInfo
+	runID  string
 
 	cmds map[string]interface{}
 	mu   sync.RWMutex
@@ -24,15 +26,20 @@ func NewServer(config *Config) *Server {
 		config = new(Config)
 	}
 
+	runID := util.GenerateID(20)
 	return &Server{
+		runID:  runID,
 		config: config,
-		info:   newServerInfo(),
+		info:   newServerInfo(runID),
 		cmds:   make(map[string]interface{}),
 	}
 }
 
 // Info returns the server info registry
 func (srv *Server) Info() *ServerInfo { return srv.info }
+
+// RunID returns the server's run ID
+func (srv *Server) RunID() string { return srv.runID }
 
 // Handle registers a handler for a command.
 func (srv *Server) Handle(name string, h Handler) {

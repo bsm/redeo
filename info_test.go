@@ -13,7 +13,7 @@ var _ = Describe("ServerInfo", func() {
 	BeforeEach(func() {
 		c1 := newClient(&mockConn{Port: 10001})
 
-		subject = newServerInfo()
+		subject = newServerInfo("6bf73a110291824b3e496e49f707628fdc0e7d36")
 		subject.connections.Inc(5)
 		subject.commands.Inc(12)
 		subject.clients.Add(c1)
@@ -26,6 +26,7 @@ var _ = Describe("ServerInfo", func() {
 		str := subject.String()
 		Expect(str).To(ContainSubstring("# Server\n"))
 		Expect(str).To(MatchRegexp(`process_id:\d+\n`))
+		Expect(str).To(ContainSubstring("run_id:6bf73a110291824b3e496e49f707628fdc0e7d36\n"))
 		Expect(str).To(MatchRegexp(`uptime_in_seconds:\d+\n`))
 		Expect(str).To(MatchRegexp(`uptime_in_days:\d+\n`))
 
