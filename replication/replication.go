@@ -1,8 +1,6 @@
 package replication
 
 import (
-	"context"
-	"fmt"
 	"net"
 	"strings"
 	"sync"
@@ -13,35 +11,25 @@ import (
 	"github.com/bsm/redeo/resp"
 )
 
-const (
-	replStateNone        uint32 = iota // no replication
-	replStateMustConnect               // must connect to master
-	replStateConnecting                // establishing a connection
-	replStateConnected                 // connected
-)
-
 // Replication handles replication between a master and a slave.
 type Replication struct {
 	id      string
 	addr    string
-	server  *redeo.Server
 	backlog *backlog
 	config  Config
 
-	// master connection
-	replState   uint32
-	masterAddr  string
-	masterConn  *masterConn
-	transitions interface{}
+	dataStore   DataStore
+	stableStore StableStore
+
+	master *masterLink // master connection link
 
 	closeOnce sync.Once
 	closing   chan struct{}
 	closed    chan struct{}
 }
 
-// NewReplication inits a replication handler with a local announcement address
-// and installs itself on a server.
-func NewReplication(addr string, server *redeo.Server, conf *Config) *Replication {
+// NewReplication inits a replication handler with a local announcement address, a data and a stable store.
+func NewReplication(addr string, stableStore StableStore, dataStore DataStore, conf *Config) *Replication {
 	// copy and normalize config
 	var config Config
 	if conf != nil {
@@ -50,15 +38,16 @@ func NewReplication(addr string, server *redeo.Server, conf *Config) *Replicatio
 	config.norm()
 
 	repl := &Replication{
-		id:      util.GenerateID(20),
-		addr:    addr,
-		server:  server,
-		backlog: newBacklog(-7, config.BacklogSize),
-		config:  config,
+		id:          util.GenerateID(20),
+		addr:        addr,
+		stableStore: stableStore,
+		dataStore:   dataStore,
+		backlog:     newBacklog(-7, config.BacklogSize),
+		master:      &masterLink{timeout: config.DialTimeout},
+		config:      config,
 
-		transitions: make(interface{}, 1024),
-		closing:     make(chan struct{}),
-		closed:      make(chan struct{}),
+		closing: make(chan struct{}),
+		closed:  make(chan struct{}),
 	}
 
 	// start background loop
@@ -69,18 +58,18 @@ func NewReplication(addr string, server *redeo.Server, conf *Config) *Replicatio
 
 // SlaveOf returns a SlaveOf handler.
 // https://redis.io/commands/slaveof
-func (r *Replication) SlaveOf() Handler {
-	return HandlerFunc(func(w resp.ResponseWriter, c *resp.Command) {
+func (r *Replication) SlaveOf() redeo.Handler {
+	return redeo.HandlerFunc(func(w resp.ResponseWriter, c *resp.Command) {
 		if c.ArgN() != 2 {
-			w.AppendError(WrongNumberOfArgs(c.Name))
+			w.AppendError(redeo.WrongNumberOfArgs(c.Name))
 			return
 		}
 
 		addr := net.JoinHostPort(c.Args[0].String(), c.Args[1].String())
 		if strings.ToLower(addr) == "no:one" {
-			r.transitions <- &transitionToMaster{}
+			r.master.SetAddr("")
 		} else {
-			r.transitions <- &transitionToSlave{MasterAddr: addr}
+			r.master.SetAddr(addr)
 		}
 		w.AppendOK()
 	})
@@ -89,19 +78,19 @@ func (r *Replication) SlaveOf() Handler {
 // Close closes the replication and frees resources. This method should be called
 // once the server has been closed.
 func (r *Replication) Close() error {
+	var err error
 	r.closeOnce.Do(func() {
 		close(r.closing)
 		<-r.closed
+
+		err = r.master.Close()
 	})
-	return nil
+	return err
 }
 
 // background loop
 func (r *Replication) loop() {
 	defer close(r.closed)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	tick := time.NewTicker(time.Second)
 	defer tick.Stop()
@@ -110,15 +99,8 @@ func (r *Replication) loop() {
 		select {
 		case <-r.closing:
 			return
-		case t := <-r.transitions:
-			switch tt := t.(type) {
-			case *transitionToMaster:
-				r.becomeMaster()
-			case *transitionToSlave:
-				r.becomeSlaveOf(tt.MasterAddr)
-			}
 		case <-tick.C:
-			if err := r.cron(ctx); err != nil {
+			if err := r.cron(); err != nil {
 				r.config.Logger.Printf("[ERR] %v", err)
 			}
 		}
@@ -127,45 +109,10 @@ func (r *Replication) loop() {
 
 // periodic cron
 func (r *Replication) cron() error {
-	switch r.replState {
-	case replStateMustConnect:
-		cn, err := newMasterConn(r.masterAddr, r.config.DialTimeout)
-		if err != nil {
-			return fmt.Errorf("unable to connect to master: %v", err)
-		}
-
-		r.masterConn = cn
-		r.replState = replStateConnecting
-	case replStateConnecting:
-
+	if err := r.master.ManageConnection(); err != nil {
+		return err
 	}
-}
-
-func (r *Replication) becomeMaster() {
-	if r.masterConn != nil {
-		_ = r.masterConn.Close()
-		r.masterConn = nil
-	}
-	if r.masterAddr != "" {
-		r.masterAddr = ""
-	}
-	r.replState = replStateNone
-}
-
-func (r *Replication) becomeSlave(masterAddr string) {
-	// don't do anything if already connected/connecting to the master
-	if r.masterAddr == masterAddr {
-		return
-	}
-
-	// disconnect from previous master
-	if r.masterAddr != "" {
-		r.becomeMaster()
-	}
-
-	// set master address and state
-	r.masterAddr = masterAddr
-	r.replState = replStateMustConnect
+	return nil
 }
 
 /*

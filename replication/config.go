@@ -15,7 +15,7 @@ type Logger interface {
 type Config struct {
 	// Size of the replication backlog. Must be at least 128KiB.
 	// Default: 2MiB
-	BacklogSize int64
+	BacklogSize int
 
 	// Timeout for master/slave establishing connection.
 	// Default: 10s

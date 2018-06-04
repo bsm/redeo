@@ -2,7 +2,6 @@ package replication
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"sync"
 
@@ -48,7 +47,6 @@ func (b *backlog) Resize(size int) {
 	b.Lock()
 	defer b.Unlock()
 
-	fmt.Println(len(b.buffer), size)
 	if len(b.buffer) == size {
 		return
 	}
