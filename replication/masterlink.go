@@ -32,8 +32,17 @@ func (l *masterLink) SetAddr(addr string) {
 	l.mu.Unlock()
 }
 
-// ManageConnection ensures connection is established to the right master.
-func (l *masterLink) ManageConnection() error {
+// Addr returns the master address.
+func (l *masterLink) Addr() string {
+	l.mu.RLock()
+	addr := l.target
+	l.mu.RUnlock()
+
+	return addr
+}
+
+// MaintainConn ensures connection is established to the right master.
+func (l *masterLink) MaintainConn() error {
 	l.mu.RLock()
 	target, active := l.target, l.active
 	l.mu.RUnlock()

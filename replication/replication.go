@@ -7,29 +7,27 @@ import (
 	"time"
 
 	"github.com/bsm/redeo"
-	"github.com/bsm/redeo/internal/util"
 	"github.com/bsm/redeo/resp"
 )
 
 // Replication handles replication between a master and a slave.
 type Replication struct {
-	id      string
-	addr    string
+	masterID string
+	addr     string
+	config   Config
+
 	backlog *backlog
-	config  Config
-
-	dataStore   DataStore
-	stableStore StableStore
-
-	master *masterLink // master connection link
+	stable  StableStore
+	data    DataStore
+	master  masterLink // master connection link
 
 	closeOnce sync.Once
 	closing   chan struct{}
-	closed    chan struct{}
+	waitFor   sync.WaitGroup
 }
 
 // NewReplication inits a replication handler with a local announcement address, a data and a stable store.
-func NewReplication(addr string, stableStore StableStore, dataStore DataStore, conf *Config) *Replication {
+func NewReplication(addr string, stable StableStore, data DataStore, conf *Config) (*Replication, error) {
 	// copy and normalize config
 	var config Config
 	if conf != nil {
@@ -37,23 +35,37 @@ func NewReplication(addr string, stableStore StableStore, dataStore DataStore, c
 	}
 	config.norm()
 
-	repl := &Replication{
-		id:          util.GenerateID(20),
-		addr:        addr,
-		stableStore: stableStore,
-		dataStore:   dataStore,
-		backlog:     newBacklog(-7, config.BacklogSize),
-		master:      &masterLink{timeout: config.DialTimeout},
-		config:      config,
-
-		closing: make(chan struct{}),
-		closed:  make(chan struct{}),
+	var state runtimeState
+	if err := (&state).Load(stable); err != nil {
+		return nil, err
 	}
 
-	// start background loop
-	go repl.loop()
+	repl := &Replication{
+		masterID: state.ID,
+		addr:     addr,
+		config:   config,
 
-	return repl
+		backlog: newBacklog(state.Offset, config.BacklogSize),
+		stable:  stable,
+		data:    data,
+		master: masterLink{
+			timeout: config.DialTimeout,
+			target:  state.SlaveOf,
+		},
+
+		closing: make(chan struct{}),
+	}
+
+	repl.waitFor.Add(2)
+	go repl.cronLoop()
+	go repl.persistLoop()
+
+	return repl, nil
+}
+
+// Propagate propagates a command to slaves.
+func (r *Replication) Propagate(cmd *resp.Command) {
+	r.backlog.Feed(cmd)
 }
 
 // SlaveOf returns a SlaveOf handler.
@@ -77,20 +89,23 @@ func (r *Replication) SlaveOf() redeo.Handler {
 
 // Close closes the replication and frees resources. This method should be called
 // once the server has been closed.
-func (r *Replication) Close() error {
-	var err error
+func (r *Replication) Close() (err error) {
 	r.closeOnce.Do(func() {
 		close(r.closing)
-		<-r.closed
+		r.waitFor.Wait()
 
-		err = r.master.Close()
+		if e := r.persist(); e != nil {
+			err = e
+		}
+		if e := r.master.Close(); e != nil {
+			err = e
+		}
 	})
-	return err
+	return
 }
 
-// background loop
-func (r *Replication) loop() {
-	defer close(r.closed)
+func (r *Replication) cronLoop() {
+	defer r.waitFor.Done()
 
 	tick := time.NewTicker(time.Second)
 	defer tick.Stop()
@@ -107,9 +122,39 @@ func (r *Replication) loop() {
 	}
 }
 
-// periodic cron
+func (r *Replication) persistLoop() {
+	defer r.waitFor.Done()
+
+	tick := time.NewTicker(time.Second)
+	defer tick.Stop()
+
+	for {
+		select {
+		case <-r.closing:
+			return
+		case <-tick.C:
+			if err := r.persist(); err != nil {
+				r.config.Logger.Printf("[ERR] %v", err)
+			}
+		}
+	}
+}
+
 func (r *Replication) cron() error {
-	if err := r.master.ManageConnection(); err != nil {
+	if err := r.master.MaintainConn(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *Replication) persist() error {
+	_, latest := r.backlog.Offsets()
+	state := &runtimeState{
+		ID:      r.masterID,
+		Offset:  latest,
+		SlaveOf: r.master.Addr(),
+	}
+	if err := state.Save(r.stable); err != nil {
 		return err
 	}
 	return nil

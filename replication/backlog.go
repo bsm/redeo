@@ -1,6 +1,7 @@
 package replication
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"sync"
@@ -9,6 +10,8 @@ import (
 )
 
 const minBacklogSize = 1 << 17 // 128KiB
+
+var bufPool, reqWPool sync.Pool
 
 var ErrOffsetOutOfBounds = errors.New("redeo: requested offset is out of bounds")
 
@@ -32,8 +35,29 @@ func newBacklog(offset int64, size int) *backlog {
 	}
 }
 
-func (b *backlog) Feed(cmd *resp.Command) error {
-	return nil
+// Feed feeds the backlog with commands to propagate.
+func (b *backlog) Feed(cmd *resp.Command) {
+	var wb *bytes.Buffer
+	if v := bufPool.Get(); v != nil {
+		wb = v.(*bytes.Buffer)
+	} else {
+		wb = new(bytes.Buffer)
+	}
+
+	var rw *resp.RequestWriter
+	if v := reqWPool.Get(); v != nil {
+		rw = v.(*resp.RequestWriter)
+		rw.Reset(wb)
+	} else {
+		rw = resp.NewRequestWriter(wb)
+	}
+
+	rw.WriteCommand(cmd)
+	_ = rw.Flush()
+	_, _ = b.Write(wb.Bytes())
+
+	reqWPool.Put(rw)
+	bufPool.Put(wb)
 }
 
 // Resize resizes the backlog by recreating the buffer
@@ -78,6 +102,15 @@ func (b *backlog) Write(data []byte) (n int, _ error) {
 		b.offset += int64(delta)
 		b.histlen = bsize
 	}
+	return
+}
+
+// Offsets returns the stored offset range.
+func (b *backlog) Offsets() (earliest, latest int64) {
+	b.RLock()
+	earliest = b.offset
+	latest = earliest + int64(b.histlen)
+	b.RUnlock()
 	return
 }
 

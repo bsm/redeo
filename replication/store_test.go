@@ -8,14 +8,44 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("InMemStore", func() {
+var _ = Describe("InMemKeyValueStore", func() {
+	var subject *InMemKeyValueStore
+	var _ DataStore = subject
+
+	BeforeEach(func() {
+		subject = NewInMemKeyValueStore()
+	})
+
+	It("should get/set", func() {
+		Expect(subject.Keys()).To(BeEmpty())
+
+		val, ok := subject.Get("notthere")
+		Expect(val).To(BeNil())
+		Expect(ok).To(BeFalse())
+
+		subject.Set("alpha", []byte("value"))
+		val, ok = subject.Get("alpha")
+		Expect(val).To(Equal([]byte("value")))
+		Expect(ok).To(BeTrue())
+
+		subject.Set("beta", []byte("valux"))
+		val, ok = subject.Get("beta")
+		Expect(val).To(Equal([]byte("valux")))
+		Expect(ok).To(BeTrue())
+
+		Expect(subject.Keys()).To(ConsistOf("alpha", "beta"))
+	})
+
+})
+
+var _ = Describe("InMemStableStore", func() {
 	var subject StableStore
 
 	BeforeEach(func() {
 		subject = NewInMemStableStore()
 	})
 
-	It("should get/set", func() {
+	It("should decode/encode", func() {
 		var v, w struct {
 			A string
 			B int
@@ -23,9 +53,9 @@ var _ = Describe("InMemStore", func() {
 		v.A = "test"
 		v.B = 33
 
-		Expect(subject.Get("k1", &w)).To(MatchError(ErrNotFound))
-		Expect(subject.Set("k1", &v)).To(Succeed())
-		Expect(subject.Get("k1", &w)).To(Succeed())
+		Expect(subject.Decode("k1", &w)).To(MatchError(ErrNotFound))
+		Expect(subject.Encode("k1", &v)).To(Succeed())
+		Expect(subject.Decode("k1", &w)).To(Succeed())
 		Expect(w).To(Equal(v))
 	})
 
@@ -55,9 +85,9 @@ var _ = Describe("FSStableStore", func() {
 		v.A = "test"
 		v.B = 33
 
-		Expect(subject.Get("k1", &w)).To(MatchError(ErrNotFound))
-		Expect(subject.Set("k1", &v)).To(Succeed())
-		Expect(subject.Get("k1", &w)).To(Succeed())
+		Expect(subject.Decode("k1", &w)).To(MatchError(ErrNotFound))
+		Expect(subject.Encode("k1", &v)).To(Succeed())
+		Expect(subject.Decode("k1", &w)).To(Succeed())
 		Expect(w).To(Equal(v))
 	})
 

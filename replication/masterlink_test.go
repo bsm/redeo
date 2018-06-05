@@ -25,30 +25,30 @@ var _ = Describe("masterLink", func() {
 		Expect(lis.Close()).To(Succeed())
 	})
 
-	It("should check if ready and manage", func() {
-		Expect(subject.target).To(Equal(""))
+	It("should maintain conn", func() {
+		Expect(subject.Addr()).To(Equal(""))
 		Expect(subject.active).To(Equal(""))
-		Expect(subject.ManageConnection()).To(Succeed())
+		Expect(subject.MaintainConn()).To(Succeed())
 
 		subject.SetAddr(lis.Addr().String())
-		Expect(subject.target).To(Equal(lis.Addr().String()))
+		Expect(subject.Addr()).To(Equal(lis.Addr().String()))
 		Expect(subject.active).To(Equal(""))
-		Expect(subject.ManageConnection()).To(Succeed())
-		Expect(subject.target).To(Equal(lis.Addr().String()))
+		Expect(subject.MaintainConn()).To(Succeed())
+		Expect(subject.Addr()).To(Equal(lis.Addr().String()))
 		Expect(subject.active).To(Equal(lis.Addr().String()))
 
 		original := subject.conn
 		subject.SetAddr("127.0.0.1:52151")
-		Expect(subject.target).To(Equal("127.0.0.1:52151"))
+		Expect(subject.Addr()).To(Equal("127.0.0.1:52151"))
 		Expect(subject.active).To(Equal(lis.Addr().String()))
 
-		Expect(subject.ManageConnection()).To(HaveOccurred())
-		Expect(subject.target).To(Equal("127.0.0.1:52151"))
+		Expect(subject.MaintainConn()).To(HaveOccurred())
+		Expect(subject.Addr()).To(Equal("127.0.0.1:52151"))
 		Expect(subject.active).To(Equal(lis.Addr().String()))
 		Expect(subject.conn).To(Equal(original))
 
 		subject.SetAddr(lis.Addr().String())
-		Expect(subject.target).To(Equal(lis.Addr().String()))
+		Expect(subject.Addr()).To(Equal(lis.Addr().String()))
 		Expect(subject.active).To(Equal(lis.Addr().String()))
 	})
 

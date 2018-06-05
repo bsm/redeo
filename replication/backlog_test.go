@@ -3,6 +3,7 @@ package replication
 import (
 	"io"
 
+	"github.com/bsm/redeo/resp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -13,6 +14,13 @@ var _ = Describe("backlog", func() {
 
 	BeforeEach(func() {
 		subject = newBacklog(320640, 0)
+	})
+
+	It("should feed", func() {
+		subject.Feed(resp.NewCommand("SET", resp.CommandArgument("key"), resp.CommandArgument("value")))
+		Expect(subject.pos).To(Equal(33))
+		Expect(subject.histlen).To(Equal(33))
+		Expect(subject.offset).To(Equal(int64(320640)))
 	})
 
 	It("should write", func() {

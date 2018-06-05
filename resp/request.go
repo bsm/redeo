@@ -168,6 +168,16 @@ func (w *RequestWriter) WriteCmdString(cmd string, args ...string) {
 	}
 }
 
+// WriteCommand writes a full command as part of a pipeline. To execute the pipeline,
+// you must call Flush.
+func (w *RequestWriter) WriteCommand(cmd *Command) {
+	w.w.AppendArrayLen(len(cmd.Args) + 1)
+	w.w.AppendBulkString(cmd.Name)
+	for _, arg := range cmd.Args {
+		w.w.AppendBulk(arg)
+	}
+}
+
 // WriteMultiBulkSize is a low-level method to write a multibulk size.
 // For normal operation, use WriteCmd or WriteCmdString.
 func (w *RequestWriter) WriteMultiBulkSize(n int) error {
