@@ -1,15 +1,13 @@
-PKG=$(shell go list ./... | grep -v vendor)
-
 default: vet test
 
 test:
-	go test $(PKG)
+	go test ./...
 
 vet:
-	go vet $(PKG)
+	go vet ./...
 
 bench:
-	go test $(PKG) -run=NONE -bench=. -benchmem -benchtime=5s
+	go test ./... -run=NONE -bench=. -benchmem -benchtime=5s
 
 fuzz:
 	go test ./.fuzz
