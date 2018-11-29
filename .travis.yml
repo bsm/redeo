@@ -3,15 +3,9 @@ services:
   - redis
 install:
   - go get -u github.com/go-redis/redis
-  - go get -u github.com/golang/dep/cmd/dep
-  - dep ensure -v -vendor-only
 script:
   - make default fuzz fuzzrace
 go:
-  - 1.10.x
-  - 1.9.x
-  - 1.8.x
-cache:
-  directories:
-  - vendor
-
+  - 1.11.x
+env:
+  - GO111MODULE=on
