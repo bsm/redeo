@@ -221,6 +221,11 @@ func (b *bufioR) PeekLine(offset int) (bufioLn, error) {
 	if index < 0 {
 		return nil, errInlineRequestTooLong
 	}
+	// Although rarely, make sure '\n' is buffered.
+	if (start + index + 1) >= b.w {
+		b.require(offset + index + 2)
+		start = b.r + offset
+	}
 	return bufioLn(b.buf[start : start+index+2]), nil
 }
 
