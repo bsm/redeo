@@ -2,10 +2,13 @@ module github.com/bsm/redeo
 
 require (
 	github.com/bsm/pool v0.8.1
-	github.com/onsi/ginkgo v1.7.0
-	github.com/onsi/gomega v1.4.3
-	golang.org/x/net v0.0.0-20181129055619-fae4c4e3ad76 // indirect
-	golang.org/x/sync v0.0.0-20181108010431-42b317875d0f // indirect
-	golang.org/x/sys v0.0.0-20181128092732-4ed8d59d0b35 // indirect
+	github.com/golang/protobuf v1.3.2 // indirect
+	github.com/kr/pretty v0.1.0 // indirect
+	github.com/onsi/ginkgo v1.8.0
+	github.com/onsi/gomega v1.5.0
+	golang.org/x/net v0.0.0-20190724013045-ca1201d0de80 // indirect
+	golang.org/x/sys v0.0.0-20190812073006-9eafafc0a87e // indirect
+	golang.org/x/text v0.3.2 // indirect
 	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
+	gopkg.in/yaml.v2 v2.2.2 // indirect
 )
