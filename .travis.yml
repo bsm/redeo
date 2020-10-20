@@ -6,7 +6,9 @@ install:
 script:
   - make default fuzz fuzzrace
 go:
-  - 1.11.x
-  - 1.12.x
+  - 1.15.x
 env:
   - GO111MODULE=on
+arch:
+  - amd64
+  - ppc64le
