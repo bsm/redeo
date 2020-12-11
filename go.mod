@@ -1,7 +1,10 @@
 module github.com/bsm/redeo
 
+go 1.15
+
 require (
 	github.com/bsm/pool v0.8.1
+	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/golang/protobuf v1.3.2 // indirect
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/onsi/ginkgo v1.8.0
