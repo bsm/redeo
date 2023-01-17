@@ -1,8 +1,8 @@
 package resp
 
 import (
-	. "github.com/onsi/ginkgo/extensions/table"
-	. "github.com/onsi/gomega"
+	. "github.com/bsm/ginkgo/v2"
+	. "github.com/bsm/gomega"
 )
 
 var _ = DescribeTable("appendArgument",

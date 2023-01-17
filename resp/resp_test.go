@@ -6,10 +6,10 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/bsm/redeo/resp"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	"github.com/onsi/gomega/types"
+	. "github.com/bsm/ginkgo/v2"
+	. "github.com/bsm/gomega"
+	"github.com/bsm/gomega/types"
+	"github.com/bsm/redeo/v2/resp"
 )
 
 var _ = Describe("ResponseType", func() {

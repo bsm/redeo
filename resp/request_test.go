@@ -5,10 +5,9 @@ import (
 	"io"
 	"strings"
 
-	"github.com/bsm/redeo/resp"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/ginkgo/extensions/table"
-	. "github.com/onsi/gomega"
+	. "github.com/bsm/ginkgo/v2"
+	. "github.com/bsm/gomega"
+	"github.com/bsm/redeo/v2/resp"
 )
 
 var _ = Describe("RequestReader", func() {

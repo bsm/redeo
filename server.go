@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bsm/redeo/resp"
+	"github.com/bsm/redeo/v2/resp"
 )
 
 // Server configuration

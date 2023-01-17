@@ -11,7 +11,7 @@ import (
   "fmt"
   "strings"
 
-  "github.com/bsm/redeo/client"
+  "github.com/bsm/redeo/v2/client"
 )
 
 func main() {

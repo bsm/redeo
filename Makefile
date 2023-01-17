@@ -1,29 +1,10 @@
-default: vet test
+default: test
 
-test:
-	go test ./...
+.minimal.makefile:
+	curl -fsSL -o $@ https://gitlab.com/bsm/misc/raw/master/make/go/minimal.makefile
 
-vet:
-	go vet ./...
-
-bench:
-	go test ./... -run=NONE -bench=. -benchmem -benchtime=5s
-
-fuzz:
-	go test ./.fuzz
-
-fuzzrace:
-	go test -race ./.fuzz
+include .minimal.makefile
 
 # go get -u github.com/davelondon/rebecca/cmd/becca
-
-doc: README.md client/README.md resp/README.md
-
-README.md: README.md.tpl $(wildcard *.go)
-	becca -package .
-
-client/README.md: client/README.md.tpl $(wildcard client/*.go)
-	cd client && becca -package .
-
-resp/README.md: resp/README.md.tpl $(wildcard resp/*.go)
-	cd resp && becca -package .
+README.md: README.md.tpl
+	becca -package github.com/bsm/redeo/v2
