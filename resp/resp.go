@@ -86,7 +86,6 @@ func IsProtocolError(err error) bool {
 const (
 	errInvalidMultiBulkLength = protoError("Protocol error: invalid multibulk length")
 	errInvalidBulkLength      = protoError("Protocol error: invalid bulk length")
-	errBlankBulkLength        = protoError("Protocol error: expected '$', got ' '")
 	errInlineRequestTooLong   = protoError("Protocol error: too big inline request")
 	errNotANumber             = protoError("Protocol error: expected a number")
 	errNotANilMessage         = protoError("Protocol error: expected a nil")

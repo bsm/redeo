@@ -63,15 +63,21 @@ func (w *bufioW) Append(v interface{}) error {
 
 			w.AppendArrayLen(s.Len())
 			for i := 0; i < s.Len(); i++ {
-				w.Append(s.Index(i).Interface())
+				if err := w.Append(s.Index(i).Interface()); err != nil {
+					return err
+				}
 			}
 		case reflect.Map:
 			s := reflect.ValueOf(v)
 
 			w.AppendArrayLen(s.Len() * 2)
 			for _, key := range s.MapKeys() {
-				w.Append(key.Interface())
-				w.Append(s.MapIndex(key).Interface())
+				if err := w.Append(key.Interface()); err != nil {
+					return err
+				}
+				if err := w.Append(s.MapIndex(key).Interface()); err != nil {
+					return err
+				}
 			}
 		default:
 			return fmt.Errorf("resp: unsupported type %T", v)

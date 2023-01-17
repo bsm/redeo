@@ -91,11 +91,7 @@ func (i *ClientInfo) String() string {
 type ServerInfo struct {
 	registry *info.Registry
 
-	startTime time.Time
-	port      string
-	socket    string
-	pid       int
-
+	startTime   time.Time
 	clients     clientStats
 	connections *info.IntValue
 	commands    *info.IntValue

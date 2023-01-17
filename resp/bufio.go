@@ -223,7 +223,9 @@ func (b *bufioR) PeekLine(offset int) (bufioLn, error) {
 	}
 	// Although rarely, make sure '\n' is buffered.
 	if (start + index + 1) >= b.w {
-		b.require(offset + index + 2)
+		if err := b.require(offset + index + 2); err != nil {
+			return nil, err
+		}
 		start = b.r + offset
 	}
 	return bufioLn(b.buf[start : start+index+2]), nil
@@ -262,12 +264,6 @@ func (b *bufioR) require(sz int) error {
 	n, err := io.ReadAtLeast(b.rd, b.buf[b.w:], extra)
 	b.w += n
 	return err
-}
-
-func (b *bufioR) skip(sz int) {
-	if b.Buffered() >= sz {
-		b.r += sz
-	}
 }
 
 // fill tries to read more data into the buffer

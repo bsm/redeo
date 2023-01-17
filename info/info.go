@@ -74,7 +74,7 @@ func (r *Registry) String() string {
 
 func (r *Registry) findSection(name string) *Section {
 	for _, s := range r.sections {
-		if strings.ToLower(s.name) == strings.ToLower(name) {
+		if strings.EqualFold(s.name, name) {
 			return s
 		}
 	}

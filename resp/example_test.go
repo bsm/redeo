@@ -185,8 +185,12 @@ func ExampleResponseWriter_CopyBulk() {
 	b := new(bytes.Buffer)
 	w := resp.NewResponseWriter(b)
 
-	w.CopyBulk(strings.NewReader("a streamer"), 8)
-	w.Flush()
+	if err := w.CopyBulk(strings.NewReader("a streamer"), 8); err != nil {
+		panic(err)
+	}
+	if err := w.Flush(); err != nil {
+		panic(err)
+	}
 	fmt.Printf("%q\n", b.String())
 
 	// Output:
@@ -199,8 +203,12 @@ func ExampleResponseWriter_CopyBulk_in_array() {
 
 	w.AppendArrayLen(2)
 	w.AppendBulkString("item 1")
-	w.CopyBulk(strings.NewReader("item 2"), 6)
-	w.Flush()
+	if err := w.CopyBulk(strings.NewReader("item 2"), 6); err != nil {
+		panic(err)
+	}
+	if err := w.Flush(); err != nil {
+		panic(err)
+	}
 	fmt.Printf("%q\n", b.String())
 
 	// Output:

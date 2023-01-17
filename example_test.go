@@ -35,7 +35,9 @@ func ExampleServer() {
 	defer lis.Close()
 
 	// Start serving (blocking)
-	srv.Serve(lis)
+	if err := srv.Serve(lis); err != nil {
+		panic(err)
+	}
 }
 
 func ExampleClient() {

@@ -98,7 +98,7 @@ var _ = Describe("ResponseWriter", func() {
 
 	DescribeTable("Append",
 		func(v interface{}, exp string) {
-			subject.Append(v)
+			Expect(subject.Append(v)).To(Succeed())
 			Expect(subject.Flush()).To(Succeed())
 			Expect(strconv.Quote(buf.String())).To(Equal(strconv.Quote(exp)))
 		},
