@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bsm/redeo/resp"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	. "github.com/bsm/ginkgo/v2"
+	. "github.com/bsm/gomega"
+	"github.com/bsm/redeo/v2/resp"
 )
 
 var _ = Describe("Server", func() {
@@ -74,7 +74,7 @@ var _ = Describe("Server", func() {
 		defer lis.Close()
 
 		// start listening
-		go srv.Serve(lis)
+		go func() { _ = srv.Serve(lis) }()
 
 		// connect client
 		cn, err := net.Dial("tcp", lis.Addr().String())
@@ -338,7 +338,12 @@ func benchmarkServer(b *testing.B, pipe []byte, expN int) {
 		w.AppendInline(cmd.Arg(0))
 	})
 
-	go srv.Serve(lis)
+	// start listening
+	go func() {
+		defer GinkgoRecover()
+
+		Expect(srv.Serve(lis)).To(Succeed())
+	}()
 
 	conn, err := net.Dial("tcp", lis.Addr().String())
 	if err != nil {

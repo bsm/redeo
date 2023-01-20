@@ -1,8 +1,6 @@
 # Redeo
 
-[![GoDoc](https://godoc.org/github.com/bsm/redeo?status.svg)](https://godoc.org/github.com/bsm/redeo)
-[![Build Status](https://travis-ci.org/bsm/redeo.png?branch=master)](https://travis-ci.org/bsm/redeo)
-[![Go Report Card](https://goreportcard.com/badge/github.com/bsm/redeo)](https://goreportcard.com/report/github.com/bsm/redeo)
+[![Go Reference](https://pkg.go.dev/badge/github.com/bsm/redeo/v2)](https://pkg.go.dev/github.com/bsm/redeo/v2)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 The high-performance Swiss Army Knife for building redis-protocol compatible servers/services.
@@ -32,7 +30,7 @@ package main
 import (
   "net"
 
-  "github.com/bsm/redeo"
+  "github.com/bsm/redeo/v2"
 )
 
 func main() {{ "ExampleServer" | code }}

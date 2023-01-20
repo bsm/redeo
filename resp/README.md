@@ -13,7 +13,7 @@ import (
   "fmt"
   "strings"
 
-  "github.com/bsm/redeo/resp"
+  "github.com/bsm/redeo/v2/resp"
 )
 
 func main() {
@@ -46,7 +46,7 @@ import (
   "bytes"
   "fmt"
 
-  "github.com/bsm/redeo/resp"
+  "github.com/bsm/redeo/v2/resp"
 )
 
 func main() {
@@ -90,7 +90,7 @@ import (
   "fmt"
   "net"
 
-  "github.com/bsm/redeo/resp"
+  "github.com/bsm/redeo/v2/resp"
 )
 
 func main() {

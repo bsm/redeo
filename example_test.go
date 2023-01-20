@@ -4,8 +4,8 @@ import (
 	"net"
 	"sync"
 
-	"github.com/bsm/redeo"
-	"github.com/bsm/redeo/resp"
+	"github.com/bsm/redeo/v2"
+	"github.com/bsm/redeo/v2/resp"
 )
 
 func ExampleServer() {
@@ -35,7 +35,9 @@ func ExampleServer() {
 	defer lis.Close()
 
 	// Start serving (blocking)
-	srv.Serve(lis)
+	if err := srv.Serve(lis); err != nil {
+		panic(err)
+	}
 }
 
 func ExampleClient() {

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/bsm/redeo/resp"
+	"github.com/bsm/redeo/v2/resp"
 )
 
 // UnknownCommand returns an unknown command error string
@@ -130,17 +130,18 @@ func (f HandlerFunc) ServeRedeo(w resp.ResponseWriter, c *resp.Command) { f(w, c
 
 // WrapperFunc implements Handler, accepts a command and must return one of
 // the following types:
-//   nil
-//   error
-//   string
-//   []byte
-//   bool
-//   float32, float64
-//   int, int8, int16, int32, int64
-//   uint, uint8, uint16, uint32, uint64
-//   resp.CustomResponse instances
-//   slices of any of the above typs
-//   maps containing keys and values of any of the above types
+//
+//	nil
+//	error
+//	string
+//	[]byte
+//	bool
+//	float32, float64
+//	int, int8, int16, int32, int64
+//	uint, uint8, uint16, uint32, uint64
+//	resp.CustomResponse instances
+//	slices of any of the above typs
+//	maps containing keys and values of any of the above types
 type WrapperFunc func(c *resp.Command) interface{}
 
 // ServeRedeo implements Handler

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bsm/redeo/resp"
+	"github.com/bsm/redeo/v2/resp"
 )
 
 // Server configuration
@@ -69,8 +69,8 @@ func (srv *Server) Serve(lis net.Listener) error {
 
 		if ka := srv.config.TCPKeepAlive; ka > 0 {
 			if tc, ok := cn.(*net.TCPConn); ok {
-				tc.SetKeepAlive(true)
-				tc.SetKeepAlivePeriod(ka)
+				_ = tc.SetKeepAlive(true)
+				_ = tc.SetKeepAlivePeriod(ka)
 			}
 		}
 
@@ -96,7 +96,7 @@ func (srv *Server) serveClient(c *Client) {
 	for !c.closed {
 		// set deadline
 		if d := srv.config.Timeout; d > 0 {
-			c.cn.SetDeadline(time.Now().Add(d))
+			_ = c.cn.SetDeadline(time.Now().Add(d))
 		}
 
 		// perform pipeline

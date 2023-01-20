@@ -6,8 +6,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/bsm/redeo"
-	"github.com/bsm/redeo/resp"
+	"github.com/bsm/redeo/v2"
+	"github.com/bsm/redeo/v2/resp"
 	"github.com/go-redis/redis"
 )
 
